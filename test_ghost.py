@@ -9,7 +9,7 @@ class TestGhost(unittest.TestCase):
         gg.set_param_num_players(3)
         gg.set_param_town_word('egg')
         gg.set_param_fool_word('pea')
-        gg.confirm_params_start_register()
+        gg.end_params_phase()
         return gg
 
     def test_register_example(self) -> Ghost:
@@ -19,9 +19,16 @@ class TestGhost(unittest.TestCase):
         self.assertFalse(gg.is_max_player_cap_reached())
         gg.register_player('tomato')
         self.assertTrue(gg.is_max_player_cap_reached())
-        gg.confirm_register_start_game()
+        gg.end_register_phase()
         return gg
 
+    def test_ghost_vote_example(self) -> Ghost:
+        gg = self.test_register_example()
+        gg.set_ghost_vote('bacon', 'peanut')
+        gg.set_ghost_vote('peanut', 'tomato')
+        gg.set_ghost_vote('tomato', 'bacon')
+        gg.end_ghost_vote_phase()
+        return gg
 
 if __name__ == '__main__':
     unittest.main()

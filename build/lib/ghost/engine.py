@@ -7,7 +7,7 @@ class GhostEngine:
     class GhostEngineException(Exception):
         pass
 
-    def __init__(self, max_games = 4):
+    def __init__(self, max_games=4):
         self.__MAX_NUMBER_OF_GAMES = max_games
         self.__games = dict()                   # game_id to game
         self.__hosts_to_game_id = bidict()      # host to game_id
@@ -88,10 +88,10 @@ class GhostEngine:
         game = self.__get_game_from_game_id(game_id)
         game.set_param_fool_word(value)
 
-    def confirm_params_start_register(self, host: str) -> None:
+    def end_param_phase(self, host: str) -> None:
         game_id = self.__get_game_id_from_host(host)
         game = self.__get_game_from_game_id(game_id)
-        game.confirm_params_start_register()
+        game.end_param_phase()
 
     ''' PHASE: REGISTER PLAYERS '''
 
@@ -103,9 +103,9 @@ class GhostEngine:
         game = self.__get_game_from_game_id(game_id)
         return game.is_max_player_cap_reached()
 
-    def confirm_register_start_game(self, game_id: int) -> dict:
+    def end_register_phase(self, game_id: int) -> dict:
         game = self.__get_game_from_game_id(game_id)
-        return game.confirm_register_start_game()
+        return game.end_register_phase()
 
     def get_player_roles(self, game_id: int) -> dict:
         game = self.__get_game_from_game_id(game_id)
