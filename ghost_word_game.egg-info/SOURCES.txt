@@ -1,9 +1,0 @@
-README.md
-setup.py
-ghost/__init__.py
-ghost/engine.py
-ghost/ghost.py
-ghost_word_game.egg-info/PKG-INFO
-ghost_word_game.egg-info/SOURCES.txt
-ghost_word_game.egg-info/dependency_links.txt
-ghost_word_game.egg-info/top_level.txt
