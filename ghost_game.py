@@ -1,5 +1,15 @@
 from enum import Enum
-from collections import deque
+import random
+
+
+class Player:
+
+    def __init__(self):
+        self.role = GhostGame.Roles.TOWN
+        self.clue = ''
+        self.vote = ''
+        self.ghost_vote = ''
+        self.is_alive = True
 
 
 class GhostGame:
@@ -15,21 +25,21 @@ class GhostGame:
     __MIN_WORD_LENGTH = 3
     __MAX_WORD_LENGTH = 15
 
-    class __Roles(Enum):
+    class Roles(Enum):
         GHOST = 'Ghost'
         TOWN = 'Town'
         FOOL = 'Fool'
 
     # defines number of each role given number of players
     __ROLE_SETS = {
-        3: (1, 2, 0),
-        4: (1, 3, 0),
-        5: (2, 3, 0),
-        6: (2, 3, 1),
-        7: (2, 3, 2),
-        8: (2, 4, 2),
-        9: (3, 4, 2),
-        10: (3, 4, 3)
+        3: (2, 1, 0),
+        4: (3, 1, 0),
+        5: (3, 2, 0),
+        6: (3, 2, 1),
+        7: (3, 2, 2),
+        8: (4, 2, 2),
+        9: (4, 3, 2),
+        10: (4, 3, 3)
     }
 
     # fsm
@@ -46,21 +56,18 @@ class GhostGame:
         self.__num_players = 0
         self.__town_word = None
         self.__fool_word = None
-        self.__all_players = set()
-        self.__alive_players = set()
 
-        self.__players_to_id = dict()  # map from username to internal id
-        self.__id_to_players = deque()
-        self.__roles = list()
-        self.__clues = list()
-        self.__votes = list()
+        self.__player_info = dict() # username --> player
+        self.__player_order = None
 
     def __check_game_state(self, expected_state: __States) -> None:
-        if self.__game_state != expected_state:
+        if self.__game_state is not expected_state:
             raise GhostGame.GhostGameException(
                 'Invalid game state! Expected game to be in %s stage but got '
-                '%s stage' % (expected_state, self.game_state)
+                '%s stage' % (expected_state, self.__game_state)
             )
+
+    ''' PHASE: SET PARAM '''
 
     def set_param_num_players(self, value: int) -> None:
         self.__check_game_state(GhostGame.__States.SET_PARAMS)
@@ -120,51 +127,84 @@ class GhostGame:
         if self.__num_players == 0:
             self.set_param_num_players(GhostGame.__DEFAULT_NUM_PLAYERS)
 
-        self.__id_to_players = [None] * self.__num_players
         self.__game_state = GhostGame.__States.REGISTER_PLAYERS
+
+    ''' PHASE: REGISTER PLAYERS '''
+
+    def __check_user_in_game(self, username: str) -> None:
+        if username not in self.__player_info:
+            raise GhostGame.GhostGameException(
+                'User @%s is not currently playing' % username
+            )
 
     def register_player(self, username: str) -> None:
         self.__check_game_state(GhostGame.__States.REGISTER_PLAYERS)
 
-        if username in self.__players_to_id:
+        if username in self.__player_info:
             raise GhostGame.GhostGameException(
                 'Player %s is already registered' % username)
 
-        current_num_players = len(self.__all_players)
-        if current_num_players >= self.__num_players:
+        if len(self.__player_info) >= self.__num_players:
             raise GhostGame.GhostGameException(
                 'Player capacity of %d exceeded' % self.__num_players)
 
-        player_id = current_num_players
-        self.__players_to_id[username] = player_id
-        self.__id_to_players.append(username)
-        self.__all_players.add(player_id)
+        self.__player_info[username] = Player()
 
     def is_max_player_cap_reached(self) -> bool:
         self.__check_game_state(GhostGame.__States.REGISTER_PLAYERS)
-        return len(self.__all_players) >= self.__num_players
+        return len(self.__player_info) >= self.__num_players
 
     def confirm_register_start_game(self) -> dict:
         self.__check_game_state(GhostGame.__States.REGISTER_PLAYERS)
-        if len(self.__all_players) < GhostGame.__MIN_NUM_PLAYERS:
+        if len(self.__player_info) < GhostGame.__MIN_NUM_PLAYERS:
             raise GhostGame.GhostGameException(
                 'Not enough players have joined (min %d)' %
                 GhostGame.__MIN_NUM_PLAYERS
             )
 
         # update final player count
-        self.__num_players = len(self.__all_players)
-        self.__all_players = self.__all_players.copy()
+        self.__num_players = len(self.__player_info)
 
         # initialise states
-        self.__roles = [None] * self.__num_players
-        self.__clues = [None] * self.__num_players
-        self.__votes = [None] * self.__num_players
-        self.__assign_player_roles()
+        roles = self.__assign_player_roles()
+        role_index = 0
+        for username in self.__player_info:
+            self.__player_info[username].role = roles[role_index]
 
+        self.__game_state = GhostGame.__States.GHOST_VOTE_ROUND
         return self.get_player_roles()
 
-    def __assign_player_roles(self) -> dict:
+    def __assign_player_roles(self) -> list:
         n_town, n_ghost, n_fool = GhostGame.__ROLE_SETS[self.__num_players]
+        roles = [GhostGame.Roles.TOWN] * n_town + \
+                       [GhostGame.Roles.GHOST] * n_ghost + \
+                       [GhostGame.Roles.FOOL] * n_fool
 
-        return dict()
+        random.shuffle(roles)
+        return roles
+
+    def __get_role(self, username: str) -> Roles:
+        self.__check_user_in_game(username)
+        return self.__player_info[username].role
+
+    def get_player_roles(self) -> dict:
+        result = dict()
+
+        for username, player in self.__player_info:
+            result[username] = player.role
+
+        return result
+
+    ''' PHASE: GHOST VOTING '''
+
+    def vote_to_start(self, username: str, ghost_vote: str) -> None:
+        self.__check_game_state(GhostGame.__States.GHOST_VOTE_ROUND)
+        self.__check_user_in_game(username)
+        self.__check_user_in_game(ghost_vote)
+
+        if self.__get_role(username) is not GhostGame.Roles.GHOST:
+            raise GhostGame.GhostGameException(
+                'User @%s is not Ghost, and cannot vote for who to start'
+            )
+
+        self.__player_info[username].ghost_vote = ghost_vote
