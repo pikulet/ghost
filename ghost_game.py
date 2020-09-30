@@ -62,18 +62,18 @@ class GhostGame:
 
     def set_param_num_players(self, value: int) -> None:
         self.__check_game_state(GhostGame.__States.SET_PARAMS)
-        if value < __MIN_PLAYERS or value > __MAX_PLAYERS:
+        if value < GhostGame.__MIN_PLAYERS or value > GhostGame.__MAX_PLAYERS:
             raise GhostGameException(
                 'The game can only have 3 to 10 players')
         self.__num_players = value
 
     def set_param_town_word(self, value: str) -> None:
         self.__check_game_state(GhostGame.__States.SET_PARAMS)
-        if len(value) < __MIN_WORD_LENGTH:
+        if len(value) < GhostGame.__MIN_WORD_LENGTH:
             raise GhostGameException(
                 'The word cannot be too short (%d char min)' %
                 __MIN_WORD_LENGTH)
-        elif len(value) > __MAX_WORD_LENGTH:
+        elif len(value) > GhostGame.__MAX_WORD_LENGTH:
             raise GhostGameException(
                 'The word cannot be too long (%d char max)' %
                 __MAX_WORD_LENGTH)
@@ -91,7 +91,7 @@ class GhostGame:
         self.__check_game_state(GhostGame.__States.SET_PARAMS)
 
         # set default number of players
-        self.set_param_num_players(__DEFAULT_NUM_PLAYERS)
+        self.set_param_num_players(GhostGame.__DEFAULT_NUM_PLAYERS)
 
         if self.__town_word is None or self.__fool_word is None:
             raise GhostGameException(
@@ -123,10 +123,10 @@ class GhostGame:
 
     def confirm_register_start_game(self) -> dict:
         self.__check_game_state(GhostGame.__States.REGISTER_PlAYERS)
-        if len(self.__all_players) < __MIN_NUM_PLAYERS:
+        if len(self.__all_players) < GhostGame.__MIN_NUM_PLAYERS:
             raise GhostGameException(
                 'Not enough players have joined (min %d)' %
-                __MIN_NUM_PLAYERS)
+                GhostGame.__MIN_NUM_PLAYERS)
 
         # update final player count
         self.__num_players = len(self.__all_players)
