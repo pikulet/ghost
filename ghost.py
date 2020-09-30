@@ -5,16 +5,16 @@ import random
 class Player:
 
     def __init__(self):
-        self.role = GhostGame.Roles.TOWN
+        self.role = Ghost.Roles.TOWN
         self.clue = ''
         self.vote = ''
         self.ghost_vote = ''
         self.is_alive = True
 
 
-class GhostGame:
+class Ghost:
 
-    class GhostGameException(Exception):
+    class GhostException(Exception):
         pass
 
     # parameters for validation
@@ -52,7 +52,7 @@ class GhostGame:
         COMPLETE = 'Complete'
 
     def __init__(self):
-        self.__game_state = GhostGame.__States.SET_PARAMS
+        self.__game_state = Ghost.__States.SET_PARAMS
         self.__num_players = 0
         self.__town_word = None
         self.__fool_word = None
@@ -62,7 +62,7 @@ class GhostGame:
 
     def __check_game_state(self, expected_state: __States) -> None:
         if self.__game_state is not expected_state:
-            raise GhostGame.GhostGameException(
+            raise Ghost.GhostException(
                 'Invalid game state! Expected game to be in %s stage but got '
                 '%s stage' % (expected_state, self.__game_state)
             )
@@ -70,96 +70,96 @@ class GhostGame:
     ''' PHASE: SET PARAM '''
 
     def set_param_num_players(self, value: int) -> None:
-        self.__check_game_state(GhostGame.__States.SET_PARAMS)
-        if value < GhostGame.__MIN_NUM_PLAYERS or \
-                value > GhostGame.__MAX_NUM_PLAYERS:
-            raise GhostGame.GhostGameException(
+        self.__check_game_state(Ghost.__States.SET_PARAMS)
+        if value < Ghost.__MIN_NUM_PLAYERS or \
+                value > Ghost.__MAX_NUM_PLAYERS:
+            raise Ghost.GhostException(
                 'The game can only have 3 to 10 players'
             )
         self.__num_players = value
 
     def set_param_town_word(self, value: str) -> None:
-        self.__check_game_state(GhostGame.__States.SET_PARAMS)
+        self.__check_game_state(Ghost.__States.SET_PARAMS)
         if not value.isalpha():
-            raise GhostGame.GhostGameException(
+            raise Ghost.GhostException(
                 'The word must be alphabetic (no numbers or symbols)'
             )
-        if len(value) < GhostGame.__MIN_WORD_LENGTH:
-            raise GhostGame.GhostGameException(
+        if len(value) < Ghost.__MIN_WORD_LENGTH:
+            raise Ghost.GhostException(
                 'The word cannot be too short (%d char min)' %
-                GhostGame.__MIN_WORD_LENGTH
+                Ghost.__MIN_WORD_LENGTH
             )
-        if len(value) > GhostGame.__MAX_WORD_LENGTH:
-            raise GhostGame.GhostGameException(
+        if len(value) > Ghost.__MAX_WORD_LENGTH:
+            raise Ghost.GhostException(
                 'The word cannot be too long (%d char max)' %
-                GhostGame.__MAX_WORD_LENGTH
+                Ghost.__MAX_WORD_LENGTH
             )
 
         self.__town_word = value
 
     def set_param_fool_word(self, value: str) -> None:
-        self.__check_game_state(GhostGame.__States.SET_PARAMS)
+        self.__check_game_state(Ghost.__States.SET_PARAMS)
         if not value.isalpha():
-            raise GhostGame.GhostGameException(
+            raise Ghost.GhostException(
                 'The word must be alphabetic (no numbers or symbols)'
             )
         if len(value) != len(self.__town_word):
-            raise GhostGame.GhostGameException(
+            raise Ghost.GhostException(
                 'The fool word and town word must have the same length. '
                 'Set the town word first.'
             )
         if value == self.__town_word:
-            raise GhostGame.GhostGameException(
+            raise Ghost.GhostException(
                 'The fool word cannot be exactly the same as the town word.'
             )
         self.__fool_word = value
 
     def confirm_params_start_register(self) -> None:
-        self.__check_game_state(GhostGame.__States.SET_PARAMS)
+        self.__check_game_state(Ghost.__States.SET_PARAMS)
 
         # check other parameters
         if self.__town_word is None:
-            raise GhostGame.GhostGameException('Town word has not been set')
+            raise Ghost.GhostException('Town word has not been set')
         if self.__fool_word is None:
-            raise GhostGame.GhostGameException('Fool word has not been set')
+            raise Ghost.GhostException('Fool word has not been set')
 
         # set default number of players
         if self.__num_players == 0:
-            self.set_param_num_players(GhostGame.__DEFAULT_NUM_PLAYERS)
+            self.set_param_num_players(Ghost.__DEFAULT_NUM_PLAYERS)
 
-        self.__game_state = GhostGame.__States.REGISTER_PLAYERS
+        self.__game_state = Ghost.__States.REGISTER_PLAYERS
 
     ''' PHASE: REGISTER PLAYERS '''
 
     def __check_user_in_game(self, username: str) -> None:
         if username not in self.__player_info:
-            raise GhostGame.GhostGameException(
+            raise Ghost.GhostException(
                 'User @%s is not currently playing' % username
             )
 
     def register_player(self, username: str) -> None:
-        self.__check_game_state(GhostGame.__States.REGISTER_PLAYERS)
+        self.__check_game_state(Ghost.__States.REGISTER_PLAYERS)
 
         if username in self.__player_info:
-            raise GhostGame.GhostGameException(
+            raise Ghost.GhostException(
                 'Player %s is already registered' % username)
 
         if len(self.__player_info) >= self.__num_players:
-            raise GhostGame.GhostGameException(
+            raise Ghost.GhostException(
                 'Player capacity of %d exceeded' % self.__num_players)
 
         self.__player_info[username] = Player()
 
     def is_max_player_cap_reached(self) -> bool:
-        self.__check_game_state(GhostGame.__States.REGISTER_PLAYERS)
+        self.__check_game_state(Ghost.__States.REGISTER_PLAYERS)
         return len(self.__player_info) >= self.__num_players
 
     def confirm_register_start_game(self) -> dict:
-        self.__check_game_state(GhostGame.__States.REGISTER_PLAYERS)
-        if len(self.__player_info) < GhostGame.__MIN_NUM_PLAYERS:
-            raise GhostGame.GhostGameException(
+        self.__check_game_state(Ghost.__States.REGISTER_PLAYERS)
+        if len(self.__player_info) < Ghost.__MIN_NUM_PLAYERS:
+            raise Ghost.GhostException(
                 'Not enough players have joined (min %d)' %
-                GhostGame.__MIN_NUM_PLAYERS
+                Ghost.__MIN_NUM_PLAYERS
             )
 
         # update final player count
@@ -171,14 +171,14 @@ class GhostGame:
         for username in self.__player_info:
             self.__player_info[username].role = roles[role_index]
 
-        self.__game_state = GhostGame.__States.GHOST_VOTE_ROUND
+        self.__game_state = Ghost.__States.GHOST_VOTE_ROUND
         return self.get_player_roles()
 
     def __assign_player_roles(self) -> list:
-        n_town, n_ghost, n_fool = GhostGame.__ROLE_SETS[self.__num_players]
-        roles = [GhostGame.Roles.TOWN] * n_town + \
-                       [GhostGame.Roles.GHOST] * n_ghost + \
-                       [GhostGame.Roles.FOOL] * n_fool
+        n_town, n_ghost, n_fool = Ghost.__ROLE_SETS[self.__num_players]
+        roles = [Ghost.Roles.TOWN] * n_town + \
+                       [Ghost.Roles.GHOST] * n_ghost + \
+                       [Ghost.Roles.FOOL] * n_fool
 
         random.shuffle(roles)
         return roles
@@ -190,7 +190,7 @@ class GhostGame:
     def get_player_roles(self) -> dict:
         result = dict()
 
-        for username, player in self.__player_info:
+        for username, player in self.__player_info.items():
             result[username] = player.role
 
         return result
@@ -198,13 +198,18 @@ class GhostGame:
     ''' PHASE: GHOST VOTING '''
 
     def vote_to_start(self, username: str, ghost_vote: str) -> None:
-        self.__check_game_state(GhostGame.__States.GHOST_VOTE_ROUND)
+        self.__check_game_state(Ghost.__States.GHOST_VOTE_ROUND)
         self.__check_user_in_game(username)
         self.__check_user_in_game(ghost_vote)
 
-        if self.__get_role(username) is not GhostGame.Roles.GHOST:
-            raise GhostGame.GhostGameException(
+        if self.__get_role(username) is not Ghost.Roles.GHOST:
+            raise Ghost.GhostException(
                 'User @%s is not Ghost, and cannot vote for who to start'
             )
 
         self.__player_info[username].ghost_vote = ghost_vote
+
+        # set clue, is clue complete
+        # set vote, is vote complete
+        # set guess
+        # is game complete

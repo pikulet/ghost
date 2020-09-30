@@ -1,18 +1,18 @@
-from ghost_game import GhostGame
+from ghost import Ghost
 import unittest
 
 
-class TestGhostGame(unittest.TestCase):
+class TestGhost(unittest.TestCase):
 
-    def test_param_example(self) -> GhostGame:
-        gg = GhostGame()
+    def test_param_example(self) -> Ghost:
+        gg = Ghost()
         gg.set_param_num_players(3)
         gg.set_param_town_word('egg')
         gg.set_param_fool_word('pea')
         gg.confirm_params_start_register()
         return gg
 
-    def test_register_example(self) -> GhostGame:
+    def test_register_example(self) -> Ghost:
         gg = self.test_param_example()
         gg.register_player('bacon')
         gg.register_player('peanut')
