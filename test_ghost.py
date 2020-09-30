@@ -1,4 +1,4 @@
-from ghost import Ghost
+from ghost.ghost import Ghost
 import unittest
 
 

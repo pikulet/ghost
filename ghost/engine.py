@@ -1,5 +1,5 @@
 from bidict import bidict
-from ghost import Ghost
+from ghost.ghost import Ghost
 
 
 class GhostEngine:
