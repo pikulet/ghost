@@ -7,4 +7,6 @@ Design:
 `GhostEngine` manages multiple `Ghost` game instances, like a dispatching
  service.
  
+Not released.
+
 used in telegram bot (in repository ghost-bot)
