@@ -1,6 +1,5 @@
 from enum import Enum
 from collections import deque, defaultdict
-import operator
 import random
 
 
@@ -61,7 +60,7 @@ class Ghost:
         self.__town_word = None
         self.__fool_word = None
 
-        self.__player_info = dict() # username --> player
+        self.__player_info = dict()  # username --> player
         self.__ghosts = set()
         self.__alive_players = set()
         self.__unvoted_players = set()
@@ -109,7 +108,7 @@ class Ghost:
                 Ghost.__MAX_WORD_LENGTH
             )
 
-        self.__town_word = value
+        self.__town_word = value.lower()
 
     def set_param_fool_word(self, value: str) -> None:
         self.__check_game_state(Ghost.__States.SET_PARAMS)
@@ -126,7 +125,7 @@ class Ghost:
             raise Ghost.GhostException(
                 'The fool word cannot be exactly the same as the town word.'
             )
-        self.__fool_word = value
+        self.__fool_word = value.lower()
 
     def end_params_phase(self) -> None:
         self.__check_game_state(Ghost.__States.SET_PARAMS)
@@ -201,18 +200,19 @@ class Ghost:
 
         for username in self.__player_info:
             self.__player_info[username].role = roles[role_index]
+            self.__player_order.append(username)
             if roles[role_index] == Ghost.Roles.GHOST:
                 self.__ghosts.add(username)
-            self.__player_order.append(username)
+            role_index += 1
 
         self.__start_ghost_vote_phase()
         return self.get_player_roles()
 
-    def __assign_player_roles(self) -> deque:
+    def __assign_player_roles(self) -> list:
         n_town, n_ghost, n_fool = Ghost.__ROLE_SETS[self.__num_players]
         roles = [Ghost.Roles.TOWN] * n_town + \
-                       [Ghost.Roles.GHOST] * n_ghost + \
-                       [Ghost.Roles.FOOL] * n_fool
+                    [Ghost.Roles.GHOST] * n_ghost + \
+                    [Ghost.Roles.FOOL] * n_fool
 
         random.shuffle(roles)
         return roles
@@ -221,31 +221,39 @@ class Ghost:
         return username in self.__ghosts
 
     def get_player_roles(self) -> dict:
-        result = deque()
+        result = dict()
 
         for username in self.__player_order:
             role = self.__player_info[username].role
-            result.append((username, role))
+            result[username] = role
 
         return result
 
     ''' HELPER METHODS '''
 
-    def __tally_votes(self, players) -> str:
+    def __tally_votes(self, players) -> set:
         votes = defaultdict(lambda: 0)
         for username in players:
             v = self.__player_info[username].info
             votes[v] += 1
 
-        # more than half chose to skip
         if votes[Ghost.__EMPTY_VOTE] >= len(players) // 2:
-            return Ghost.__EMPTY_VOTE
+            return set()
 
-        votes = bidict(votes)
-        max_vote = max(votes.inverse)
-        max_votees = votes.inverse[max_vote]
+        max_votees = set()
+        max_vote = 0
+        for username, count in votes.items():
+            if count > max_vote:
+                max_votees = set()
+                max_votees.add(username)
+                max_vote = count
+            elif count == max_vote:
+                max_votees.add(username)
 
         return max_votees
+
+    def __tally_ghost_votes(self) -> str:
+        return self.__tally_votes(self.__ghosts).pop()
 
     def __reset_info(self) -> None:
         for player in self.__player_info.values():
@@ -283,11 +291,11 @@ class Ghost:
 
     def end_ghost_vote_phase(self) -> None:
         if not self.is_ghost_vote_phase_complete():
-            raise Ghost.GhostExcept(
+            raise Ghost.GhostException(
                 'Some players have yet to vote'
             )
 
-        to_start = self.__tally_votes(self.__ghosts)[0]
+        to_start = self.__tally_ghost_votes()
 
         while self.__player_order[0] != to_start:
             skip = self.__player_order.popleft()
@@ -303,7 +311,7 @@ class Ghost:
         self.__unvoted_players = set(self.__alive_players)
 
     def get_player_order(self) -> list:
-        return self.__player_order
+        return list(self.__player_order)
 
     def set_clue(self, username: str, clue: str) -> None:
         self.__check_game_state(Ghost.__States.CLUE_ROUND)
@@ -320,16 +328,16 @@ class Ghost:
     def is_clue_phase_complete(self) -> bool:
         return self.__is_phase_complete(Ghost.__States.CLUE_ROUND)
 
-    def end_clue_phase(self) -> list:
+    def end_clue_phase(self) -> dict:
         if not self.is_clue_phase_complete():
             raise Ghost.GhostException(
                 'Some players have yet to give a clue'
             )
 
-        result = deque()
+        result = dict()
 
         for username, player in self.__player_info.items():
-            result.append((username, player.clue))
+            result[username] = player.clue
 
         return result
 
@@ -353,13 +361,20 @@ class Ghost:
     def is_vote_phase_complete(self) -> bool:
         return self.__is_phase_complete(Ghost.__States.VOTE_ROUND)
 
+    def __tally_lynch_votes(self) -> str:
+        tally = self.__tally_votes(self.__alive_players)
+        if len(tally) == 1:
+            return tally.pop()
+        else:
+            return Ghost.__EMPTY_VOTE
+
     def end_vote_phase(self) -> str:
         if not self.is_vote_phase_complete():
             raise Ghost.GhostException(
                 'Some players have yet to vote'
             )
 
-        to_lynch = self.__tally_votes(self.__alive_players)
+        to_lynch = self.__tally_lynch_votes()
 
         if to_lynch == Ghost.__EMPTY_VOTE:
             self.__start_clue_phase()
@@ -372,13 +387,23 @@ class Ghost:
 
         return to_lynch
 
-    def kill_player(self, username: str) -> None:
+    def __kill_player(self, username: str) -> None:
         self.__check_user_alive(username)
 
         self.__alive_players.discard(username)
         self.__ghosts.discard(username)
         self.__unvoted_players.discard(username)
         self.__player_order.remove(username)
+        self.__check_end_game()
+
+    def __check_end_game(self):
+        num_ghost_alive = len(list(filter(self.is_ghost, self.__alive_players)))
+        if num_ghost_alive == 0:
+            # killed all ghosts
+            self.__end_game(Ghost.Roles.TOWN)
+        elif num_ghost_alive >= len(self.__alive_players) // 2:
+            # ghosts got majority
+            self.__end_game(Ghost.Roles.GHOST)
 
     ''' PHASE: GUESS '''
 
@@ -392,18 +417,22 @@ class Ghost:
             # ignore irrelevant messages
             return
 
-        if guess.tolower() == self.__town_word:
+        if guess.lower() == self.__town_word:
             self.__end_game(Ghost.Roles.GHOST)
+        else:
+            self.__kill_player(username)
+            self.__start_vote_phase()
 
     def __end_game(self, winner: Roles):
         self.__game_state = Ghost.__States.COMPLETE
         self.__winning_team = winner
 
+    def is_game_complete(self) -> bool:
+        return self.__game_state == Ghost.__States.COMPLETE
 
-
-
-
-
-
+    def get_winning_team(self):
+        if not self.is_game_complete():
+            raise Ghost.GhostException('Game is not completed')
+        return self.__winning_team
 
 

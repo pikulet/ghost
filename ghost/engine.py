@@ -88,26 +88,71 @@ class GhostEngine:
         game = self.__get_game_from_game_id(game_id)
         game.set_param_fool_word(value)
 
-    def confirm_params_start_register(self, host: str) -> None:
+    def end_params_phase(self, host: str) -> None:
         game_id = self.__get_game_id_from_host(host)
         game = self.__get_game_from_game_id(game_id)
-        game.confirm_params_start_register()
+        game.end_params_phase()
 
     ''' PHASE: REGISTER PLAYERS '''
 
     def register_player(self, game_id: int, username: str) -> None:
         game = self.__get_game_from_game_id(game_id)
         game.register_player(username)
+        if game.is_max_player_cap_reached():
+            game.end_register_phase()
+            # TODO: send message to bot
 
-    def is_max_player_cap_reached(self, game_id: int) -> bool:
-        game = self.__get_game_from_game_id(game_id)
-        return game.is_max_player_cap_reached()
-
-    def confirm_register_start_game(self, game_id: int) -> dict:
-        game = self.__get_game_from_game_id(game_id)
-        return game.confirm_register_start_game()
+    ''' PHASE: ROLE SETUP '''
 
     def get_player_roles(self, game_id: int) -> dict:
         game = self.__get_game_from_game_id(game_id)
         return game.get_player_roles()
+
+    ''' PHASE: GHOST VOTING '''
+
+    def set_ghost_vote(self, game_id: int, username: str, ghost_vote: str) -> None:
+        game = self.__get_game_from_game_id(game_id)
+        game.set_ghost_vote(username, ghost_vote)
+        if game.is_ghost_vote_phase_complete():
+            game.end_ghost_vote_phase()
+            # TODO: send message to bot
+
+    ''' PHASE: CLUES '''
+
+    def get_player_order(self, game_id: int) -> list:
+        game = self.__get_game_from_game_id(game_id)
+        return game.get_player_order()
+
+    def set_clue(self, game_id: int, username: str, clue: str) -> None:
+        game = self.__get_game_from_game_id(game_id)
+        game.set_clue()
+        if game.is_clue_phase_complete():
+            game.end_clue_phase()
+            # TODO: notify bot
+
+    ''' PHASE: VOTE '''
+
+    def set_vote(self, game_id: int, username: str, vote: str) -> None:
+        game = self.__get_game_from_game_id(game_id)
+        game.set_vote(username, vote)
+        if game.is_vote_phase_complete():
+            to_lynch = game.end_vote_phase()
+            if game.is_ghost(to_lynch):
+                # TODO: notify bot
+                pass
+            elif game.is_game_complete():
+                # TODO: notify bot
+                winner = game.get_winning_team()
+            else:
+                # TODO: notify bot
+                pass
+
+    ''' PHASE: GUESS '''
+
+    def make_guess(self, game_id: int, username: str, guess: str) -> None:
+        game = self.__get_game_from_game_id(game_id)
+        game.make_guess(username, guess)
+        if game.is_game_complete():
+            winner = game.get_winning_team()
+            # TODO: notify bot
 
