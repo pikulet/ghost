@@ -1,3 +1,4 @@
 /build/
+/dist/
 *.pyc
-ghost/*/*.pyc
+ghost/__pycache__/*.pyc
