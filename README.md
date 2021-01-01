@@ -3,11 +3,13 @@ Python engine for the word game of ghost (as played on em)
 
 `pip3 install ghost_word_game`
 
-`from ghost import GhostEngine`
+`import ghost`
 
-Design:
-`GhostEngine` manages multiple `Ghost` game instances, like a dispatching
- service.
+To upload package, update version in `setup.py`.
+
+`python3 setup.py sdist bdist_wheel`
+
+`twine upload dist/*`
  
 Not released.
 
