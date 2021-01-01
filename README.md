@@ -6,7 +6,7 @@ Python engine for the word game of ghost (as played on em)
 
 `import ghost`
 
-Please refer to tests for example usage
+Please refer to tests for example usage. Implemented using a finite state machine style.
 
 ### some quik tools
 
@@ -14,4 +14,6 @@ Please refer to tests for example usage
 
 ### Notes
 
-Not released. Used in telegram bot (in repository ghost-bot)
+Not released. Used in telegram bot (in repository ghost-bot). 
+
+Looking forward to suggestions ^^
