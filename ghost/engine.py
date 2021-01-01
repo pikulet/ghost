@@ -1,6 +1,5 @@
 from bidict import bidict
-from ghost.ghost import Ghost
-
+from ghost import Ghost
 
 class GhostEngine:
 
@@ -11,9 +10,10 @@ class GhostEngine:
         self.__MAX_NUMBER_OF_GAMES = max_games
         self.__games = dict()                   # game_id to game
         self.__hosts_to_game_id = bidict()      # host to game_id
-        self.__username_to_game_id = bidict()     # username to game_id
+        self.__player_to_game_id = dict()     # username to game_id
 
-    def add_game(self, game_id: int) -> Ghost:
+    def add_game(self, game_id: int, host: str) -> None:
+        ''' Creates a game in the engine '''
         if game_id in self.__games:
             raise GhostEngine.GhostEngineException(
                 'There is already an ongoing game in this group...'
@@ -26,9 +26,10 @@ class GhostEngine:
 
         new_game = Ghost()
         self.__games[game_id] = new_game
-        return new_game
+        self.__ghost_to_game_id[host] = game_id
 
     def delete_game(self, game_id: int) -> None:
+        ''' Removes a game from the engine '''
         self.__check_game_exists()
         del self.__games[game_id]
 
@@ -45,8 +46,8 @@ class GhostEngine:
                 'User @%s is not the host of any game'
             )
 
-    def __check_username_exists(self, username: str) -> None:
-        if username not in self.__username_to_game_id:
+    def __check_player_exists(self, username: str) -> None:
+        if player not in self.__username_to_game_id:
             raise GhostEngine.GhostEngineException(
                 'User @%s has no ongoing game'
             )
@@ -63,20 +64,28 @@ class GhostEngine:
         self.__check_game_exists(game_id)
         return self.__hosts_to_game_id.inverse[game_id]
 
-    def __get_game_id_from_username(self, username: str) -> int:
-        self.__check_username_exists(username)
-        return self.__username_to_game_id[username]
+    def __get_game_id_from_player(self, username: str) -> int:
+        self.__check_player_exists(username)
+        return self.__player_to_game_id[username]
 
-    def __get_usernames_from_game_id(self, game_id: int) -> set:
+    def __get_players_from_game_id(self, game_id: int) -> set:
         self.__check_game_exists(game_id)
-        return self.__username_to_game_id.inverse[game_id]
-
-    ''' PHASE: SET PARAM '''
-
-    def set_param_num_players(self, host: str, value: int) -> None:
-        game_id = self.__get_game_id_from_host(host)
         game = self.__get_game_from_game_id(game_id)
-        game.set_param_num_players(value)
+        # TODO
+        return game.get_players() 
+
+    ''' PHASE: REGISTER PLAYERS '''
+
+    def register_player(self, game_id: int, player: str) -> int:
+        ''' Returns the number of players registered in the game '''
+        game = self.__get_game_from_game_id(game_id)
+        return game.register_player(player)
+
+    def start_game(self, game_id: int) -> None:
+        game = self.__get_game_from_game_id(game_id)
+        game.start_game()
+        
+    ''' PHASE: SET PARAM '''
 
     def set_param_town_word(self, host: str, value: str) -> None:
         game_id = self.__get_game_id_from_host(host)
@@ -88,53 +97,33 @@ class GhostEngine:
         game = self.__get_game_from_game_id(game_id)
         game.set_param_fool_word(value)
 
-    def end_params_phase(self, host: str) -> None:
-        game_id = self.__get_game_id_from_host(host)
-        game = self.__get_game_from_game_id(game_id)
-        game.end_params_phase()
-
-    ''' PHASE: REGISTER PLAYERS '''
-
-    def register_player(self, game_id: int, username: str) -> None:
-        game = self.__get_game_from_game_id(game_id)
-        game.register_player(username)
-        if game.is_max_player_cap_reached():
-            game.end_register_phase()
-            # TODO: send message to bot
-
     ''' PHASE: ROLE SETUP '''
 
     def get_player_roles(self, game_id: int) -> dict:
         game = self.__get_game_from_game_id(game_id)
         return game.get_player_roles()
 
-    ''' PHASE: GHOST VOTING '''
-
-    def set_ghost_vote(self, game_id: int, username: str, ghost_vote: str) -> None:
-        game = self.__get_game_from_game_id(game_id)
-        game.set_ghost_vote(username, ghost_vote)
-        if game.is_ghost_vote_phase_complete():
-            game.end_ghost_vote_phase()
-            # TODO: send message to bot
-
     ''' PHASE: CLUES '''
 
-    def get_player_order(self, game_id: int) -> list:
+    def get_next_clue_giver(self, game_id: int) -> str:
+        ''' Return username of next person to give clue, empty string if all
+        clues have been given '''
         game = self.__get_game_from_game_id(game_id)
-        return game.get_player_order()
+        return game.get_next_clue_giver()
 
-    def set_clue(self, game_id: int, username: str, clue: str) -> None:
+    def set_clue(self, game_id: int, player: str, clue: str) -> None:
         game = self.__get_game_from_game_id(game_id)
-        game.set_clue()
-        if game.is_clue_phase_complete():
-            game.end_clue_phase()
-            # TODO: notify bot
+        game.set_clue(player, clue)
+
+    def retrieve_all_clues(self, game_id: int) -> dict:
+        game = self.__get_game_from_game_id(game_id)
+        return game.retrieve_all_clues()
 
     ''' PHASE: VOTE '''
 
-    def set_vote(self, game_id: int, username: str, vote: str) -> None:
+    def set_vote(self, game_id: int, player: str, vote: str) -> e:
         game = self.__get_game_from_game_id(game_id)
-        game.set_vote(username, vote)
+        game.set_vote(player, vote)
         if game.is_vote_phase_complete():
             to_lynch = game.end_vote_phase()
             if game.is_ghost(to_lynch):
@@ -149,9 +138,9 @@ class GhostEngine:
 
     ''' PHASE: GUESS '''
 
-    def make_guess(self, game_id: int, username: str, guess: str) -> None:
+    def make_guess(self, game_id: int, player: str, guess: str) -> None:
         game = self.__get_game_from_game_id(game_id)
-        game.make_guess(username, guess)
+        game.make_guess(player, guess)
         if game.is_game_complete():
             winner = game.get_winning_team()
             # TODO: notify bot

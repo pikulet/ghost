@@ -44,14 +44,14 @@ class Ghost:
     }
 
     # fsm
-    class __States(Enum):
-        SET_PARAMS = 'Setting parameters'
+    class States(Enum):
         REGISTER_PLAYERS = 'Registering players'
-        GHOST_VOTE_ROUND = 'Ghost Vote Round'
+        SET_PARAMS = 'Setting parameters'
         CLUE_ROUND = 'Word Round'
         VOTE_ROUND = 'Vote Round'
         GUESS_ROUND = 'Guess Word Round'
-        COMPLETE = 'Complete'
+        WINNER_GHOST = 'Ghosts won!'
+        WINNER_TOWN = 'Town won!'
 
     def __init__(self):
         self.__game_state = None
@@ -70,7 +70,7 @@ class Ghost:
 
         self.__start_param_phase()
 
-    def __check_game_state(self, expected_state: __States) -> None:
+    def __check_game_state(self, expected_state: States) -> None:
         if self.__game_state != expected_state:
             raise Ghost.GhostException(
                 'Invalid game state! Expected game to be in %s stage but got '
@@ -259,7 +259,7 @@ class Ghost:
         for player in self.__player_info.values():
             player.info = None
 
-    def __is_phase_complete(self, phase: __States) -> bool:
+    def __is_phase_complete(self, phase: States) -> bool:
         self.__check_game_state(phase)
         return len(self.__unvoted_players) == 0
 
