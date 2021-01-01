@@ -1,9 +1,9 @@
 Metadata-Version: 2.1
 Name: ghost-word-game
-Version: 0.0.7
+Version: 0.1.2
 Summary: Python engine for Ghost word game
 Home-page: https://github.com/pikulet/ghost
-Author: Joyce Yeo and Jermyn Yeo
+Author: Joyce Yeo
 Author-email: jycyeo@yahoo.com.sg
 License: UNKNOWN
 Description: # ghost
@@ -11,11 +11,13 @@ Description: # ghost
         
         `pip3 install ghost_word_game`
         
-        `from ghost import GhostEngine`
+        `import ghost`
         
-        Design:
-        `GhostEngine` manages multiple `Ghost` game instances, like a dispatching
-         service.
+        To upload package, update version in `setup.py`.
+        
+        `python3 setup.py sdist bdist_wheel`
+        
+        `twine upload dist/*`
          
         Not released.
         
@@ -27,5 +29,5 @@ Platform: UNKNOWN
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
-Requires-Python: >=3.8
+Requires-Python: >=3.6
 Description-Content-Type: text/markdown

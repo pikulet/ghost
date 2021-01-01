@@ -6,8 +6,8 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="ghost-word-game",
     # own username
-    version="0.0.7",
-    author="Joyce Yeo and Jermyn Yeo",
+    version="0.1.2",
+    author="Joyce Yeo",
     author_email="jycyeo@yahoo.com.sg",
     description="Python engine for Ghost word game",
     long_description=long_description,
@@ -19,5 +19,5 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.8',
+    python_requires='>=3.6',
 )

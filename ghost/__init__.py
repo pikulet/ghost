@@ -1,2 +1,2 @@
-from engine import GhostEngine
-from ghost import Ghost, Ghost.States, Ghost.Roles
+from ghost.engine import GhostEngine
+from ghost.ghost import Ghost
