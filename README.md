@@ -9,7 +9,7 @@ To upload package, update version in `setup.py`.
 
 `python3 setup.py sdist bdist_wheel`
 
-`twine upload dist/*`
+`python3 -m twine upload dist/*`
  
 Not released.
 
