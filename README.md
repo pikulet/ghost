@@ -10,3 +10,5 @@ Design:
 Not released.
 
 used in telegram bot (in repository ghost-bot)
+
+Need to add API calls to telegram bot.
