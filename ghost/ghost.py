@@ -198,7 +198,7 @@ class Ghost:
         return self.__town_word, self.__fool_word
 
     def __is_ghost(self, username: str) -> bool:
-        return self.__player_info[username].role == Ghost.States.GHOST
+        return self.__player_info[username].role == Ghost.Roles.GHOST
 
     def __check_user_alive(self, username: str) -> None:
         if username not in self.__player_info:
@@ -244,9 +244,7 @@ class Ghost:
         self.__unvoted_players = set(self.__alive_players)
 
     def suggest_next_clue_giver(self) -> str:
-        if len(self.__unvoted_players) == 0:
-            return None
-
+        self.__check_game_state(Ghost.States.CLUE_ROUND)
         return random.sample(self.__unvoted_players, 1)[0]
 
     def set_clue(self, username: str, clue: str) -> bool:
@@ -283,8 +281,9 @@ class Ghost:
         self.__game_state = Ghost.States.VOTE_ROUND
         self.__reset_info()
         self.__unvoted_players = set(self.__alive_players)
+        self.__last_lycnhed = None
 
-    def set_vote(self, username: str, vote: str) -> bool:
+    def set_vote(self, username: str, vote: str) -> (bool, str, States):
         self.__check_game_state(Ghost.States.VOTE_ROUND)
         self.__check_user_alive(username)
 
@@ -298,7 +297,7 @@ class Ghost:
         if is_complete:
             self.__process_vote()
 
-        return is_complete
+        return is_complete, self.__last_lynched, self.__game_state
 
     def __process_vote(self) -> None:
         tally = self.__tally_votes(self.__alive_players)
@@ -310,52 +309,25 @@ class Ghost:
         self.__last_lynched = to_lynch
 
         if self.__is_ghost(to_lynch):
-            self.__start_guess_phase()
+            self.__game_state = Ghost.States.GUESS_ROUND
         else:
             self.__kill_player(to_lynch)
             self.__start_clue_phase()
-
-        if self.__player_info[to_lynch].role != Ghost.Roles.GHOST
-
-    def get_vote_result(self) -> (str, Ghost.States):
-        # TODO
-        return None, None
-
-    def end_vote_phase(self) -> str:
-        if not self.is_vote_phase_complete():
-            raise Ghost.GhostException(
-                'Some players have yet to vote'
-            )
-
-        to_lynch = self.__tally_lynch_votes()
-
-        if to_lynch == Ghost.__EMPTY_VOTE:
-        elif not self.is_ghost(to_lynch):
-            self.__kill_player(to_lynch)
-            self.__start_clue_phase()
-        else:
-
-        return to_lynch
 
     def __kill_player(self, username: str) -> None:
-        self.__check_user_alive(username)
-
         self.__alive_players.discard(username)
 
-        num_ghost_alive = len(list(filter(lambda , self.__alive_players)))
+        num_ghost_alive = len(list(filter(self.__is_ghost, self.__alive_players)))
         if num_ghost_alive == 0:
             # killed all ghosts
-            self.__end_game(Ghost.Roles.TOWN)
+            self.__game_state = Ghost.States.WINNER_TOWN
         elif num_ghost_alive >= len(self.__alive_players) // 2:
             # ghosts got majority
-            self.__end_game(Ghost.Roles.GHOST)
+            self.__game_state = Ghost.States.WINNER_GHOST
 
     ''' PHASE: GUESS '''
 
-    def __start_guess_phase(self) -> None:
-        self.__game_state = Ghost.States.GUESS_ROUND
-
-    def make_guess(self, username: str, guess: str) -> None:
+    def make_guess(self, username: str, guess: str) -> bool:
         self.__check_game_state(Ghost.States.GUESS_ROUND)
 
         if username != self.__last_lynched:
@@ -364,20 +336,12 @@ class Ghost:
 
         if guess.lower() == self.__town_word:
             self.__end_game(Ghost.Roles.GHOST)
+            return True
         else:
             self.__kill_player(username)
             self.__start_vote_phase()
+            return False
 
     def __end_game(self, winner: Roles):
         self.__game_state = Ghost.States.COMPLETE
         self.__winning_team = winner
-
-    def is_game_complete(self) -> bool:
-        return self.__game_state == Ghost.States.COMPLETE
-
-    def get_winning_team(self):
-        if not self.is_game_complete():
-            raise Ghost.GhostException('Game is not completed')
-        return self.__winning_team
-
-

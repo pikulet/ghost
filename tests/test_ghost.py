@@ -27,28 +27,31 @@ class TestGhostEngine(unittest.TestCase):
         self.__create_game(gid, host, players, town_word, fool_word)
 
         roles = self.ge.get_player_roles(gid)
-        print(roles)
+        # TODO: assert
 
-        while True:
-            p = self.ge.get_next_clue_giver(gid)
-            if not p:
+        is_game_complete = False
+        while not is_game_complete:
+            is_clue_complete = False
+            while not is_clue_complete:
+                p = self.ge.suggest_next_clue_giver(gid)
+                is_clue_complete = self.ge.set_clue(gid, p, 'example clue ' + p)
+
+            # Example
+            clues = self.ge.get_all_clues(gid)
+
+            is_vote_complete = False
+            while not is_vote_complete:
+                for p in players:
+                    is_vote_complete, lynched, state = self.ge.set_vote(gid, p, players[0])
+
+                self.assertTrue(lynched == players[0])
+                players.pop(0)
+
+            if state == ghost.States.GUESS_ROUND:
+                self.ge.make_guess(gid, lynched, fool_word)
+
+            if state != ghost.States.CLUE_ROUND:
                 break
-            
-            self.ge.set_clue(gid, p, 'example clue ' + p)
-
-        clues = self.ge.get_all_clues(gid)
-        print(clues)
-
-        for p in players:
-            self.ge.set_vote(gid, p, players[2])
-
-        to_lynch = self.ge.get_vote_result(gid)
-        self.assertTrue(to_lynch == players[2])
-
-class TestGhost(unittest.TestCase):
-
-    def test_valid_game(self):
-        g = ghost.Ghost()
 
 if __name__ == '__main__':
     unittest.main()

@@ -116,7 +116,7 @@ class GhostEngine:
     def set_clue(self, gid: int, player: str, clue: str) -> bool:
         ''' Returns True if all players have given a clue '''
         game = self.__get_game_from_gid(gid)
-        game.set_clue(player, clue)
+        return game.set_clue(player, clue)
 
     def get_all_clues(self, gid: int) -> dict:
         game = self.__get_game_from_gid(gid)
@@ -124,23 +124,17 @@ class GhostEngine:
 
     ''' PHASE: VOTE '''
 
-    def set_vote(self, gid: int, player: str, vote: str) -> bool:
-        ''' Returns True if all players have voted '''
+    def set_vote(self, gid: int, player: str, vote: str) -> (bool, str,
+                                                             Ghost.States):
+        ''' Returns True if all players have voted.
+        If true, returns the name of person voted out and the resulting game
+        state '''
         game = self.__get_game_from_gid(gid)
         return game.set_vote(player, vote)
 
-    def get_vote_result(self, gid: int) -> (str, Ghost.States):
-        ''' Return the username of the player voted out, empty string if no
-        one'''
-        game = self.__get_game_from_gid(gid)
-        return game.get_vote_result()
-
     ''' PHASE: GUESS '''
 
-    def make_guess(self, gid: int, player: str, guess: str) -> None:
+    def make_guess(self, gid: int, player: str, guess: str) -> bool:
+        ''' Returns True if the guess is correct '''
         game = self.__get_game_from_gid(gid)
-        game.make_guess(player, guess)
-        if game.is_game_complete():
-            winner = game.get_winning_team()
-            # TODO: notify bot
-
+        return game.make_guess(player, guess)
