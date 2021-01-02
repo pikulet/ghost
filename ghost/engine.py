@@ -73,7 +73,7 @@ class GhostEngine:
 
     def get_num_players(self, gid: int) -> int:
         game = self.__get_game_from_gid(gid)
-        return game.get_num_players
+        return game.get_num_players()
 
     def get_player_roles(self, gid: int) -> dict:
         game = self.__get_game_from_gid(gid)
@@ -87,6 +87,12 @@ class GhostEngine:
 
     def register_player(self, gid: int, player: str) -> int:
         ''' Returns the number of players registered in the game '''
+        host = self.__get_host_from_gid(gid)
+        if player == host:
+            raise GhostEngine.GhostEngineException(
+                'User @%s is the host of the game' % player
+            )
+
         game = self.__get_game_from_gid(gid)
         return game.register_player(player)
 
