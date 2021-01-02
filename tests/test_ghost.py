@@ -31,6 +31,8 @@ class TestGhostEngine(unittest.TestCase):
         roles = ge.get_player_roles(gid)
         # TODO: assert
 
+        players = self.VALID_PLAYERS.copy()
+
         for _ in range(len(players)):
             p = ge.suggest_next_clue_giver(gid)
             is_clue_complete = ge.set_clue(gid, p, 'example clue ' + p)
@@ -47,18 +49,22 @@ class TestGhostEngine(unittest.TestCase):
 
             state = ge.get_game_state(gid)
             if state == ghost.States.GUESS_ROUND:
-                ge.make_guess(gid, lynched, town_word)
+                ge.make_guess(gid, lynched, self.VALID_TW)
+                print(state)
                 self.assertTrue(state == ghost.States.WINNER_GHOST)
 
+
     def test_invalid_player_count(self):
-        ge = ghost.GameEngine()
+        ge = ghost.GhostEngine()
         self.__create_game(ge, 1309128, 'asf', ['b', 'c'], 'cat', 'dog')
         self.__create_game(ge, 1309129, 'asd', 
                            ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'], 'cat', 'dog')
 
     def test_invalid_host_joins(self):
-        ge = ghost.GameEngine()
+        ge = ghost.GhostEngine()
         host = 'cake'
-        self.__create_game(ge, 123213, host, [host, 'b', 'c'], 'c
+        self.__create_game(ge, 123213, host, [host, 'b', 'c'], self.VALID_TW,
+                           self.VALID_FW)
+
 if __name__ == '__main__':
     unittest.main()

@@ -52,6 +52,13 @@ class Ghost:
         WINNER_GHOST = 'Ghosts won'
         WINNER_TOWN = 'Town won'
 
+    # Error messages
+    ERR_INVALID_GAME_STATE = 'Invalid game state! Expected %s but got %s'
+    ERR_PLAYER_ALREADY_REGISTERED = 'Player %s is already registered' 
+    ERR_PLAYER_CAP_EXCEEDED = 'Player capacity of %d exceeded.'
+    ERR_INSUFF_PLAYERS = 'Not enough players joined (min %d)' % MIN_NUM_PLAYERS
+    ERR_WORD_NOT_ALPHA = 'The word must be alphabetic (no numbers or symbols)'
+
     def __init__(self):
         self.__game_state = Ghost.States.REGISTER_PLAYERS
         self.__town_word = None
@@ -65,8 +72,7 @@ class Ghost:
     def __check_game_state(self, expected_state: States) -> None:
         if self.__game_state != expected_state:
             raise Ghost.GhostException(
-                'Invalid game state! Expected game to be in %s stage but got '
-                '%s state' % (expected_state, self.__game_state)
+                ERR_INVALID_GAME_STATE % (expected_state, self.__game_state)
             )
 
     ''' PHASE: REGISTER PLAYERS '''
@@ -77,13 +83,13 @@ class Ghost:
 
         if username in self.__player_info:
             raise Ghost.GhostException(
-                'Player %s is already registered' % username
+                ERR_PLAYER_ALREADY_REGISTERED % username
             )
 
         if len(self.__player_info) >= Ghost.MAX_NUM_PLAYERS:
             # TODO: Automatically start the game
             raise Ghost.GhostException(
-                'Player capacity of %d exceeded. Please start the game.' % Ghost.MAX_NUM_PLAYERS
+                ERR_PLAYER_CAP_EXCEEDED % Ghost.MAX_NUM_PLAYERS
             )
 
         self.__player_info[username] = Player()
@@ -94,10 +100,7 @@ class Ghost:
         self.__check_game_state(Ghost.States.REGISTER_PLAYERS)
 
         if len(self.__player_info) < Ghost.MIN_NUM_PLAYERS:
-            raise Ghost.GhostException(
-                'Not enough players have joined (min %d needed)' %
-                Ghost.MIN_NUM_PLAYERS
-            )
+            raise Ghost.GhostException(Ghost.ERR_INSUFF_PLAYERS)
 
         self.__allocate_roles()
         self.__game_state = Ghost.States.SET_PARAMS
@@ -124,9 +127,7 @@ class Ghost:
         self.__check_game_state(Ghost.States.SET_PARAMS)
 
         if not value.isalpha():
-            raise Ghost.GhostException(
-                'The word must be alphabetic (no numbers or symbols)'
-            )
+            raise Ghost.GhostException(ERR_WORD_NOT_ALPHA)
 
         if len(value) < Ghost.MIN_WORD_LENGTH:
             raise Ghost.GhostException(
