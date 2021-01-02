@@ -1,18 +1,19 @@
 # ghost
+
 Python engine for the word game of ghost (as played on em)
 
 `pip3 install ghost_word_game`
 
 `import ghost`
 
-To upload package, update version in `setup.py`.
+Please refer to tests for example usage. Implemented using a finite state machine style.
 
-`python3 setup.py sdist bdist_wheel`
+### some quik tools
 
-`python3 -m twine upload dist/*`
- 
-Not released.
+`bash run_tests.sh` and `upload_pkg.sh` can be used. Remember to do the relevant config in `setup.py` before uplaoding to PyPi.
 
-used in telegram bot (in repository ghost-bot)
+### Notes
 
-Need to add API calls to telegram bot.
+Not released. Used in telegram bot (in repository ghost-bot). 
+
+Looking forward to suggestions ^^
