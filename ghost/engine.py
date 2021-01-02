@@ -10,7 +10,6 @@ class GhostEngine:
         self.__MAX_NUMBER_OF_GAMES = max_games
         self.__games = dict()                   # gid to game
         self.__host_to_gid = bidict()      # host to gid
-        self.__player_to_gid = dict()     # username to gid
 
     def add_game(self, gid: int, host: str) -> None:
         ''' Creates a game in the engine '''
@@ -66,15 +65,23 @@ class GhostEngine:
         self.__check_game_exists(gid)
         return self.__host_to_gid.inverse[gid]
 
-    def __get_gid_from_player(self, username: str) -> int:
-        self.__check_player_exists(username)
-        return self.__player_to_gid[username]
+    ''' GET GAME INFORMATION '''
 
-    def __get_players_from_gid(self, gid: int) -> set:
-        self.__check_game_exists(gid)
+    def get_game_state(self, gid: int) -> Ghost.States:
         game = self.__get_game_from_gid(gid)
-        # TODO
-        return game.get_players() 
+        return game.get_game_state()
+
+    def get_num_players(self, gid: int) -> int:
+        game = self.__get_game_from_gid(gid)
+        return game.get_num_players
+
+    def get_player_roles(self, gid: int) -> dict:
+        game = self.__get_game_from_gid(gid)
+        return game.get_player_roles()
+
+    def get_words(self, gid: int) -> (str, str):
+        game = self.__get_game_from_gid(gid)
+        return game.get_words()
 
     ''' PHASE: REGISTER PLAYERS '''
 
@@ -99,12 +106,6 @@ class GhostEngine:
         game = self.__get_game_from_gid(gid)
         game.set_param_fool_word(value)
 
-    ''' PHASE: ROLE SETUP '''
-
-    def get_player_roles(self, gid: int) -> dict:
-        game = self.__get_game_from_gid(gid)
-        return game.get_player_roles()
-
     ''' PHASE: CLUES '''
 
     def suggest_next_clue_giver(self, gid: int) -> str:
@@ -124,11 +125,9 @@ class GhostEngine:
 
     ''' PHASE: VOTE '''
 
-    def set_vote(self, gid: int, player: str, vote: str) -> (bool, str,
-                                                             Ghost.States):
+    def set_vote(self, gid: int, player: str, vote: str) -> (bool, str):
         ''' Returns True if all players have voted.
-        If true, returns the name of person voted out and the resulting game
-        state '''
+        If true, returns the name of person voted out '''
         game = self.__get_game_from_gid(gid)
         return game.set_vote(player, vote)
 

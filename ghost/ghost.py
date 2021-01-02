@@ -2,6 +2,7 @@ from enum import Enum
 from collections import deque, defaultdict
 import random
 
+import logging
 
 class Player:
 
@@ -32,8 +33,8 @@ class Ghost:
     # TOWN, GHOST, FOOL
     __ROLE_SETS = {
         3: (2, 1, 0),
-        4: (3, 1, 0),
-        5: (3, 2, 0),
+        4: (2, 1, 1),
+        5: (3, 1, 1),
         6: (3, 2, 1),
         7: (3, 2, 2),
         8: (4, 2, 2),
@@ -53,12 +54,10 @@ class Ghost:
 
     def __init__(self):
         self.__game_state = Ghost.States.REGISTER_PLAYERS
-        self.__num_players = 0
         self.__town_word = None
         self.__fool_word = None
 
         self.__player_info = dict()  # username --> player
-        self.__alive_players = set()
         self.__unvoted_players = set()
 
         self.__last_lynched = None
@@ -70,15 +69,10 @@ class Ghost:
                 '%s state' % (expected_state, self.__game_state)
             )
 
-    def __check_not_in_game_state(self, invalid_state: States) -> None:
-        if self.__game_state == expected_state:
-            raise Ghost.GhostException(
-                'Invalid game state! Cannot be in %s' % invalid_state
-            )
-
     ''' PHASE: REGISTER PLAYERS '''
 
     def register_player(self, username: str) -> int:
+        logging.info('Registering player @%s' % username)
         self.__check_game_state(Ghost.States.REGISTER_PLAYERS)
 
         if username in self.__player_info:
@@ -96,6 +90,7 @@ class Ghost:
         return len(self.__player_info)
 
     def start_game(self) -> int:
+        logging.info('Starting game')
         self.__check_game_state(Ghost.States.REGISTER_PLAYERS)
 
         if len(self.__player_info) < Ghost.MIN_NUM_PLAYERS:
@@ -104,19 +99,12 @@ class Ghost:
                 Ghost.MIN_NUM_PLAYERS
             )
 
-        # update final player count
-        self.__num_players = len(self.__player_info)
-        self.__alive_players = set(self.__player_info)
-
-        # distribute roles
         self.__allocate_roles()
-
         self.__game_state = Ghost.States.SET_PARAMS
 
     def __allocate_roles(self) -> None:
-
         # get the roles in this game
-        n_town, n_ghost, n_fool = Ghost.__ROLE_SETS[self.__num_players]
+        n_town, n_ghost, n_fool = Ghost.__ROLE_SETS[len(self.__player_info)]
         roles = [Ghost.Roles.TOWN] * n_town + \
             [Ghost.Roles.GHOST] * n_ghost + \
             [Ghost.Roles.FOOL] * n_fool
@@ -132,6 +120,7 @@ class Ghost:
     ''' PHASE: SET PARAMS '''
 
     def set_param_town_word(self, value: str) -> None:
+        logging.info('Setting town word: %s' % value)
         self.__check_game_state(Ghost.States.SET_PARAMS)
 
         if not value.isalpha():
@@ -154,6 +143,7 @@ class Ghost:
         self.__town_word = value.lower()
 
     def set_param_fool_word(self, value: str) -> None:
+        logging.info('Setting fool word: %s' % value)
         self.__check_game_state(Ghost.States.SET_PARAMS)
 
         if self.__town_word is None:
@@ -181,6 +171,13 @@ class Ghost:
 
     ''' HELPER METHODS '''
 
+    def get_game_state(self) -> States:
+        return self.__game_state
+
+    # TODO: remove
+    def get_num_players(self) -> int:
+        return len(self.__player_info)
+
     def get_player_roles(self) -> dict:
         if self.__game_state == Ghost.States.REGISTER_PLAYERS:
             raise Ghost.GhostException(
@@ -206,31 +203,10 @@ class Ghost:
                 'User @%s is currently not playing' % username
             )
 
-        if username not in self.__alive_players:
+        if username not in self.__player_info:
             raise Ghost.GhostException(
                 'User @%s is not alive' % username
             )
-
-    def __tally_votes(self, players) -> set:
-        votes = defaultdict(lambda: 0)
-        for username in players:
-            v = self.__player_info[username].info
-            votes[v] += 1
-
-        if votes[Ghost.__EMPTY_VOTE] >= len(players) // 2:
-            return set()
-
-        max_votees = set()
-        max_vote = 0
-        for username, count in votes.items():
-            if count > max_vote:
-                max_votees = set()
-                max_votees.add(username)
-                max_vote = count
-            elif count == max_vote:
-                max_votees.add(username)
-
-        return max_votees
 
     def __reset_info(self) -> None:
         for player in self.__player_info.values():
@@ -241,7 +217,7 @@ class Ghost:
     def __start_clue_phase(self) -> None:
         self.__game_state = Ghost.States.CLUE_ROUND
         self.__reset_info()
-        self.__unvoted_players = set(self.__alive_players)
+        self.__unvoted_players = set(self.__player_info)
 
     def suggest_next_clue_giver(self) -> str:
         self.__check_game_state(Ghost.States.CLUE_ROUND)
@@ -280,10 +256,10 @@ class Ghost:
     def __start_vote_phase(self) -> None:
         self.__game_state = Ghost.States.VOTE_ROUND
         self.__reset_info()
-        self.__unvoted_players = set(self.__alive_players)
+        self.__unvoted_players = set(self.__player_info)
         self.__last_lycnhed = None
 
-    def set_vote(self, username: str, vote: str) -> (bool, str, States):
+    def set_vote(self, username: str, vote: str) -> (bool, str):
         self.__check_game_state(Ghost.States.VOTE_ROUND)
         self.__check_user_alive(username)
 
@@ -297,15 +273,38 @@ class Ghost:
         if is_complete:
             self.__process_vote()
 
-        return is_complete, self.__last_lynched, self.__game_state
+        return is_complete, self.__last_lynched
+
+    def __tally_votes(self, players) -> set:
+        votes = defaultdict(lambda: 0)
+        for username in players:
+            v = self.__player_info[username].info
+            votes[v] += 1
+
+        if votes[Ghost.__EMPTY_VOTE] >= len(players) // 2:
+            return set()
+
+        max_votees = set()
+        max_vote = 0
+        for username, count in votes.items():
+            if count > max_vote:
+                max_votees = set()
+                max_votees.add(username)
+                max_vote = count
+            elif count == max_vote:
+                max_votees.add(username)
+
+        return max_votees
 
     def __process_vote(self) -> None:
-        tally = self.__tally_votes(self.__alive_players)
+        tally = self.__tally_votes(self.__player_info)
         if len(tally) != 1:
             # voted for no one
             self.__start_clue_phase()
+            return
 
         to_lynch = tally.pop()
+        logging.info('Lynching player @%s' % to_lynch)
         self.__last_lynched = to_lynch
 
         if self.__is_ghost(to_lynch):
@@ -315,13 +314,13 @@ class Ghost:
             self.__start_clue_phase()
 
     def __kill_player(self, username: str) -> None:
-        self.__alive_players.discard(username)
+        del self.__player_info[username]
 
-        num_ghost_alive = len(list(filter(self.__is_ghost, self.__alive_players)))
+        num_ghost_alive = len(list(filter(self.__is_ghost, self.__player_info)))
         if num_ghost_alive == 0:
             # killed all ghosts
             self.__game_state = Ghost.States.WINNER_TOWN
-        elif num_ghost_alive >= len(self.__alive_players) // 2:
+        elif num_ghost_alive >= len(self.__player_info) // 2:
             # ghosts got majority
             self.__game_state = Ghost.States.WINNER_GHOST
 
@@ -334,14 +333,13 @@ class Ghost:
             # ignore irrelevant messages
             return
 
+        logging.info('Player @%s has guessed: %s' % (username, guess))
         if guess.lower() == self.__town_word:
-            self.__end_game(Ghost.Roles.GHOST)
+            self.__game_state = Ghost.States.WINNER_GHOST
             return True
-        else:
-            self.__kill_player(username)
+        
+        self.__kill_player(username)
+        if self.__game_state != Ghost.States.WINNER_TOWN:
             self.__start_vote_phase()
-            return False
-
-    def __end_game(self, winner: Roles):
-        self.__game_state = Ghost.States.COMPLETE
-        self.__winning_team = winner
+        
+        return False
