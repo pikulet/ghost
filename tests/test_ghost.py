@@ -9,7 +9,7 @@ VALID_TW = 'egg'
 VALID_FW = 'fry'
 
 logger = logging.getLogger()
-logger.level = logging.DEBUG
+logger.level = logging.INFO
 stream_handler = logging.StreamHandler(sys.stdout)
 
 def create_game(ge, gid, host, players, town_word, fool_word):
@@ -52,8 +52,7 @@ class TestValidGame(unittest.TestCase):
 
         players = VALID_PLAYERS.copy()
 
-        for _ in range(len(players)):
-            p = ge.suggest_next_clue_giver(gid)
+        for p in ge.get_player_order(gid):
             is_clue_complete = ge.set_clue(gid, p, 'example clue ' + p)
 
         # Example
@@ -62,13 +61,16 @@ class TestValidGame(unittest.TestCase):
         state = ge.get_game_state(gid)
         while state == ghost.States.VOTE_ROUND: 
             for p in players:
-                is_vote_complete, lynched = ge.set_vote(gid, p, players[0])
+                i, j, lynched = ge.set_vote(gid, p, players[0])
+
+            print(i, j, lynched, players[0])
             self.assertTrue(lynched == players[0])
             players.pop(0)
 
             state = ge.get_game_state(gid)
             if state == ghost.States.GUESS_ROUND:
                 ge.make_guess(gid, lynched, VALID_TW)
+                print(state)
                 self.assertTrue(state == ghost.States.WINNER_GHOST)
 
             print(state)

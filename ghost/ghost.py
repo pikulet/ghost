@@ -68,6 +68,7 @@ class Ghost:
     ERR_FOOL_WORD_DUPLICATE = 'The fool word cannot be exactly the same as the town word'
     ERR_ROLES_NOT_ALLOCATED = 'Still registering players. Roles have not been allocated'
     ERR_USER_NOT_IN_GAME = 'User @%s is currently not alive or not playing'
+    ERR_PLAYER_NOT_IN_ORDER = 'It is currently user @%s\'s turn!'
     ERR_CLUE_ALREADY_GIVEN = 'User @%s has already given a clue this round'
     ERR_PLAYER_CANNOT_GUESS = 'It is not up to player @%s to guess'
 
@@ -78,39 +79,57 @@ class Ghost:
 
         self.__player_info = dict()  # username --> player
         self.__unvoted_players = set()
+        self.__player_order = list()
+        self.__player_order_index = -1
 
-        self.__last_lynched = None
+        self.__last_lynched = Ghost.__EMPTY_VOTE
 
     def __is_game_state(self, expected_state: States) -> bool:
-        if self.__game_state != expected_state:
-            logging.warning(Ghost.ERR_INVALID_GAME_STATE % (expected_state,
-                                                      self.__game_state))
-            return False
-
-        return True
+        return self.__game_state == expected_state
 
     ''' PHASE: REGISTER PLAYERS '''
 
-    def register_player(self, username: str) -> int:
+    def register_player(self, username: str) -> (bool, int):
+        res = False
         if not self.__is_game_state(Ghost.States.REGISTER_PLAYERS):
-            pass
-        elif username in self.__player_info:
+            logging.warning(Ghost.ERR_INVALID_GAME_STATE % 
+                            (Ghost.States.REGISTER_PLAYERS, self.__game_state))
+        elif self.__is_user_alive(username):
             logging.warning(Ghost.ERR_PLAYER_ALREADY_REGISTERED % username)
         elif len(self.__player_info) >= Ghost.MAX_NUM_PLAYERS:
             logging.warning(Ghost.ERR_PLAYER_CAP_EXCEEDED)
         else:
+            res = True
             self.__player_info[username] = Player()
             logging.info('Success: Registered player @%s' % username)
 
-        return len(self.__player_info)
+        return res, len(self.__player_info)
+
+    def unregister_player(self, username: str) -> bool:
+        if not self.__is_game_state(Ghost.States.REGISTER_PLAYERS):
+            logging.warning(Ghost.ERR_INVALID_GAME_STATE % 
+                            (Ghost.States.REGISTER_PLAYERS, self.__game_state))
+            return False
+        elif not self.__is_user_alive(username):
+            logging.warning(Ghost.ERR_USER_NOT_IN_GAME % username)
+            return False
+        else:
+            del self.__player_info[username]
+            return True
 
     def start_game(self) -> bool:
         if not self.__is_game_state(Ghost.States.REGISTER_PLAYERS):
+            logging.warning(Ghost.ERR_INVALID_GAME_STATE % 
+                            (Ghost.States.REGISTER_PLAYERS, self.__game_state))
             return False
 
         if len(self.__player_info) < Ghost.MIN_NUM_PLAYERS:
             logging.warning(Ghost.ERR_INSUFF_PLAYERS)
             return False
+
+        # set player order
+        self.__player_order = list(self.__player_info)
+        random.shuffle(self.__player_order)
 
         self.__allocate_roles()
         self.__game_state = Ghost.States.SET_PARAMS
@@ -136,6 +155,8 @@ class Ghost:
 
     def set_param_town_word(self, value: str) -> bool:
         if not self.__is_game_state(Ghost.States.SET_PARAMS):
+            logging.warning(Ghost.ERR_INVALID_GAME_STATE % 
+                            (Ghost.States.SET_PARAMS, self.__game_state))
             return False
         elif len(value) < Ghost.MIN_WORD_LENGTH:
             logging.warning(Ghost.ERR_WORD_TOO_SHORT)
@@ -148,11 +169,13 @@ class Ghost:
             return False
 
         self.__town_word = value.lower()
-        logging.info('Success: Set the town word: %s' % value)
+        logging.info('Success: Set the town word: %s' % self.__town_word)
         return True
 
     def set_param_fool_word(self, value: str) -> bool:
         if not self.__is_game_state(Ghost.States.SET_PARAMS):
+            logging.warning(Ghost.ERR_INVALID_GAME_STATE % 
+                            (Ghost.States.SET_PARAMS, self.__game_state))
             return False
         elif self.__town_word is None:
             logging.warning(Ghost.ERR_TOWN_WORD_NOT_SET)
@@ -168,7 +191,7 @@ class Ghost:
             return False
 
         self.__fool_word = value.lower()
-        logging.info('Success: Set the fool word: %s' % value)
+        logging.info('Success: Set the fool word: %s' % self.__fool_word)
 
         self.__start_clue_phase()
         return True
@@ -180,6 +203,9 @@ class Ghost:
 
     def get_existing_players(self) -> List[str]:
         return list(self.__player_info)
+
+    def get_player_order(self) -> List[str]:
+        return self.__player_order
 
     def get_player_roles(self) -> dict:
         if self.__game_state == Ghost.States.REGISTER_PLAYERS:
@@ -200,11 +226,7 @@ class Ghost:
         return self.__player_info[username].role == Ghost.Roles.GHOST
 
     def __is_user_alive(self, username: str) -> bool:
-        if username not in self.__player_info:
-            logging.warning(Ghost.ERR_USER_NOT_IN_GAME)
-            return False
-
-        return True
+        return username in self.__player_info
 
     def __reset_info(self) -> None:
         for player in self.__player_info.values():
@@ -216,25 +238,36 @@ class Ghost:
         self.__game_state = Ghost.States.CLUE_ROUND
         self.__reset_info()
         self.__unvoted_players = set(self.__player_info)
+        self.__player_order_index = 0
 
-    def suggest_next_clue_giver(self) -> str:
-        if not self.__is_game_state(Ghost.States.CLUE_ROUND):
-            return ''
+    def get_next_in_player_order(self) -> str:
+        return self.__player_order[self.__player_order_index]
 
-        return random.sample(self.__unvoted_players, 1)[0]
+    def __increase_player_order_index(self) -> None:
+        self.__player_order_index += 1
+        self.__player_order_index %= len(self.__player_info)
 
     def set_clue(self, username: str, clue: str) -> (bool, bool):
         default_return = False, False
         if not self.__is_game_state(Ghost.States.CLUE_ROUND):
+            logging.warning(Ghost.ERR_INVALID_GAME_STATE % 
+                            (Ghost.States.CLUE_ROUND, self.__game_state))
             return default_return
         elif not self.__is_user_alive(username):
+            logging.warning(Ghost.ERR_USER_NOT_IN_GAME % username)
             return default_return 
         elif self.__player_info[username].info is not None:
             logging.warning(Ghost.ERR_CLUE_ALREADY_GIVEN % username)
             return default_return 
 
+        expected_user = self.get_next_in_player_order()
+        if username != expected_user:
+            logging.warning(Ghost.ERR_PLAYER_NOT_IN_ORDER % expected_user)
+            return default_return
+
         self.__player_info[username].clue = clue
         self.__unvoted_players.remove(username)
+        self.__increase_player_order_index()
 
         # check if all players have given clues
         is_complete = len(self.__unvoted_players) == 0
@@ -244,10 +277,13 @@ class Ghost:
         return True, is_complete
 
     def get_all_clues(self) -> dict:
-        if not self.__is_game_state(Ghost.States.VOTE_ROUND):
-            return dict()
-
         result = dict()
+
+        if not self.__is_game_state(Ghost.States.VOTE_ROUND):
+            logging.warning(Ghost.ERR_INVALID_GAME_STATE % 
+                            (Ghost.States.VOTE_ROUND, self.__game_state))
+            return result
+
         for username, player in self.__player_info.items():
             result[username] = player.clue
 
@@ -259,15 +295,18 @@ class Ghost:
         self.__game_state = Ghost.States.VOTE_ROUND
         self.__reset_info()
         self.__unvoted_players = set(self.__player_info)
-        self.__last_lycnhed = None
 
     def set_vote(self, username: str, vote: str) -> (bool, bool, str):
         default_return = False, False, ''
         if not self.__is_game_state(Ghost.States.VOTE_ROUND):
+            logging.warning(Ghost.ERR_INVALID_GAME_STATE % i
+                            (Ghost.States.VOTE_ROUND, self.__game_state))
             return default_return 
         elif not self.__is_user_alive(username):
+            logging.warning(Ghost.ERR_USER_NOT_IN_GAME % username)
             return default_return 
         elif vote != Ghost.__EMPTY_VOTE and not self.__is_user_alive(vote):
+            logging.warning(Ghost.ERR_USER_NOT_IN_GAME % vote)
             return default_return 
 
         self.__player_info[username].info = vote
@@ -277,7 +316,7 @@ class Ghost:
         if is_complete:
             self.__process_vote()
 
-        return is_complete, self.__last_lynched
+        return True, is_complete, self.__last_lynched
 
     def __tally_votes(self, players) -> set:
         votes = defaultdict(lambda: 0)
@@ -333,14 +372,17 @@ class Ghost:
     def make_guess(self, username: str, guess: str) -> (bool, bool):
         default_return = False, False
         if not self.__is_game_state(Ghost.States.GUESS_ROUND):
+            logging.warning(Ghost.ERR_INVALID_GAME_STATE %
+                            (Ghost.States.GUESS_ROUND, self.__game_state))
             return default_return
         elif username != self.__last_lynched:
             logging.warning(Ghost.ERR_PLAYER_CANNOT_GUESS % username)
             # ignore irrelevant messages
             return default_return
 
-        logging.info('Player @%s has guessed: %s' % (username, guess))
+        logging.info('Player @%s has guessed: %s' % (username, guess.lower()))
         if guess.lower() == self.__town_word:
+            logging.info('Congratulations to the Ghosts!')
             self.__game_state = Ghost.States.WINNER_GHOST
             return True, True
         

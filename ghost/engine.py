@@ -1,7 +1,7 @@
 from bidict import bidict
 from ghost.ghost import Ghost
 
-from typing import List
+from typing import List, Dict
 
 import logging
 
@@ -94,7 +94,11 @@ class GhostEngine:
         game = self.__get_game_from_gid(gid)
         return game.get_existing_players()
 
-    def get_player_roles(self, gid: int) -> dict:
+    def get_player_order(self, gid: int) -> List[int]:
+        game = self.__get_game_from_gid(gid)
+        return game.get_player_order()
+
+    def get_player_roles(self, gid: int) -> Dict[str, Ghost.Roles]:
         game = self.__get_game_from_gid(gid)
         return game.get_player_roles()
 
@@ -136,11 +140,12 @@ class GhostEngine:
 
     ''' PHASE: CLUES '''
 
-    def suggest_next_clue_giver(self, gid: int) -> str:
-        ''' Return username of next person to give clue, empty string if all
-        clues have been given '''
+    def get_next_in_player_order(self, gid: int) -> str:
+        ''' Returns the name of the next person expected to give a clue.
+        An empty string is returned if all clues have been given or 
+        it's not the clue phase '''
         game = self.__get_game_from_gid(gid)
-        return game.suggest_next_clue_giver()
+        return game.get_next_in_player_order()
 
     def set_clue(self, gid: int, player: str, clue: str) -> (bool, bool):
         ''' Returns a tuple of two booleans. 
@@ -149,7 +154,7 @@ class GhostEngine:
         game = self.__get_game_from_gid(gid)
         return game.set_clue(player, clue)
 
-    def get_all_clues(self, gid: int) -> dict:
+    def get_all_clues(self, gid: int) -> Dict[str, str]:
         ''' Returns the clues given by the users.
         An empty dict() is returned if not all clues have been given. '''
         game = self.__get_game_from_gid(gid)
@@ -157,7 +162,7 @@ class GhostEngine:
 
     ''' PHASE: VOTE '''
 
-    def set_vote(self, gid: int, player: str, vote: str) -> (bool, str):
+    def set_vote(self, gid: int, player: str, vote: str) -> (bool, bool, str):
         ''' Returns a tuple of three booleans.
         The first boolean is True if the vote is successfully made.
         The second boolean is True if all the players have voted.
