@@ -7,13 +7,11 @@ import logging
 
 class GhostEngine:
 
-    class GhostEngineException(Exception):
-        pass
-
     ERR_TOO_MANY_GAMES = 'Too many ongoing games... Please wait...'
     ERR_GID_ALREADY_EXISTS = 'There is already an ongoing game in this group'
     ERR_GID_DOES_NOT_EXIST = 'Game %d does not exist'
 
+    ERR_USER_IS_HOST = 'User @%s is the host of the game'
     ERR_USER_NOT_HOST = 'User @%s is not the host of any game'
     ERR_PLAYER_DOES_NOT_EXIST = 'User @%s has no ongoing game'
 
@@ -48,21 +46,21 @@ class GhostEngine:
 
     def __is_game_exists(self, gid: int) -> bool:
         if gid not in self.__games:
-            logging.warning(ERR_GID_DOES_NOT_EXIST % gid)
+            logging.warning(GhostEngine.ERR_GID_DOES_NOT_EXIST % gid)
             return False
 
         return True
 
     def __is_host_exists(self, host: str) -> bool:
         if host not in self.__host_to_gid:
-            logging.warning(ERR_USER_NOT_HOST % host)
+            logging.warning(GhostEngine.ERR_USER_NOT_HOST % host)
             return False
 
         return True
 
     def __is_player_exists(self, username: str) -> None:
         if player not in self.__username_to_gid:
-            logging.warning(ERR_PLAYER_DOES_NOT_EXIST)
+            logging.warning(GhostEngine.ERR_PLAYER_DOES_NOT_EXIST)
             return False
 
         return True
@@ -73,7 +71,8 @@ class GhostEngine:
 
         return self.__games[gid]
 
-    def __get_gid_from_host(self, host: str) -> int:
+    def get_gid_from_host(self, host: str) -> int:
+        ''' Returns the gid the host is in-charge of, -1 otherwise  '''
         if not self.__is_host_exists(host):
             return -1
 
@@ -108,58 +107,70 @@ class GhostEngine:
     def register_player(self, gid: int, player: str) -> int:
         ''' Returns the number of players registered in the game '''
         host = self.__get_host_from_gid(gid)
-        if player == host:
-            raise GhostEngine.GhostEngineException(
-                'User @%s is the host of the game' % player
-            )
-
         game = self.__get_game_from_gid(gid)
+
+        if player == host:
+            logging.warning(GhostEngine.ERR_USER_IS_HOST % player)
+            return len(game.get_existing_players())
+
         return game.register_player(player)
 
-    def start_game(self, gid: int) -> None:
+    def start_game(self, gid: int) -> bool:
+        ''' Returns True if the game was successfully started '''
         game = self.__get_game_from_gid(gid)
-        game.start_game()
+        return game.start_game()
         
     ''' PHASE: SET PARAM '''
 
-    def set_param_town_word(self, host: str, value: str) -> None:
-        gid = self.__get_gid_from_host(host)
+    def set_param_town_word(self, host: str, value: str) -> bool:
+        ''' Returns True if the town word was successfully set '''
+        gid = self.get_gid_from_host(host)
         game = self.__get_game_from_gid(gid)
-        game.set_param_town_word(value)
+        return game.set_param_town_word(value)
 
-    def set_param_fool_word(self, host: str, value: str) -> None:
-        gid = self.__get_gid_from_host(host)
+    def set_param_fool_word(self, host: str, value: str) -> bool:
+        ''' Returns True if the fool word was successfully set '''
+        gid = self.get_gid_from_host(host)
         game = self.__get_game_from_gid(gid)
-        game.set_param_fool_word(value)
+        return game.set_param_fool_word(value)
 
     ''' PHASE: CLUES '''
 
     def suggest_next_clue_giver(self, gid: int) -> str:
-        ''' Return username of next person to give clue, None if all
+        ''' Return username of next person to give clue, empty string if all
         clues have been given '''
         game = self.__get_game_from_gid(gid)
         return game.suggest_next_clue_giver()
 
-    def set_clue(self, gid: int, player: str, clue: str) -> bool:
-        ''' Returns True if all players have given a clue '''
+    def set_clue(self, gid: int, player: str, clue: str) -> (bool, bool):
+        ''' Returns a tuple of two booleans. 
+        The first boolean is True if the clue is successfully given.
+        The second boolean is True if all players have given a clue. '''
         game = self.__get_game_from_gid(gid)
         return game.set_clue(player, clue)
 
     def get_all_clues(self, gid: int) -> dict:
+        ''' Returns the clues given by the users.
+        An empty dict() is returned if not all clues have been given. '''
         game = self.__get_game_from_gid(gid)
         return game.get_all_clues()
 
     ''' PHASE: VOTE '''
 
     def set_vote(self, gid: int, player: str, vote: str) -> (bool, str):
-        ''' Returns True if all players have voted.
-        If true, returns the name of person voted out '''
+        ''' Returns a tuple of three booleans.
+        The first boolean is True if the vote is successfully made.
+        The second boolean is True if all the players have voted.
+        The third boolean returns the player voted out, 
+        or an empty string if no one is voted out. '''
         game = self.__get_game_from_gid(gid)
         return game.set_vote(player, vote)
 
     ''' PHASE: GUESS '''
 
     def make_guess(self, gid: int, player: str, guess: str) -> bool:
-        ''' Returns True if the guess is correct '''
+        ''' Returns a tuple of two booleans.
+        The first boolean is True if the guess is successfully made.
+        The second boolean is True if the guess is correct. '''
         game = self.__get_game_from_gid(gid)
         return game.make_guess(player, guess)

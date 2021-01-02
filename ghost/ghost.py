@@ -66,8 +66,10 @@ class Ghost:
     ERR_TOWN_WORD_NOT_SET = 'Set the town word first'
     ERR_FOOL_WORD_DIFFERENT_LENGTH = 'The fool word and town word must have the same length'
     ERR_FOOL_WORD_DUPLICATE = 'The fool word cannot be exactly the same as the town word'
+    ERR_ROLES_NOT_ALLOCATED = 'Still registering players. Roles have not been allocated'
+    ERR_USER_NOT_IN_GAME = 'User @%s is currently not alive or not playing'
     ERR_CLUE_ALREADY_GIVEN = 'User @%s has already given a clue this round'
-
+    ERR_PLAYER_CANNOT_GUESS = 'It is not up to player @%s to guess'
 
     def __init__(self):
         self.__game_state = Ghost.States.REGISTER_PLAYERS
@@ -102,17 +104,18 @@ class Ghost:
 
         return len(self.__player_info)
 
-    def start_game(self) -> None:
+    def start_game(self) -> bool:
         if not self.__is_game_state(Ghost.States.REGISTER_PLAYERS):
-            return
+            return False
 
         if len(self.__player_info) < Ghost.MIN_NUM_PLAYERS:
             logging.warning(Ghost.ERR_INSUFF_PLAYERS)
-            return
+            return False
 
         self.__allocate_roles()
         self.__game_state = Ghost.States.SET_PARAMS
         logging.info('Success: Started game')
+        return True
 
     def __allocate_roles(self) -> None:
         # get the roles in this game
@@ -135,13 +138,13 @@ class Ghost:
         if not self.__is_game_state(Ghost.States.SET_PARAMS):
             return False
         elif len(value) < Ghost.MIN_WORD_LENGTH:
-            logging.warning(ERR_WORD_TOO_SHORT)
+            logging.warning(Ghost.ERR_WORD_TOO_SHORT)
             return False
         elif len(value) > Ghost.MAX_WORD_LENGTH:
-            logging.warning(ERR_WORD_TOO_LONG)
+            logging.warning(Ghost.ERR_WORD_TOO_LONG)
             return False
         elif not Ghost.DICTIONARY.check(value):
-            logging.warning(ERR_WORD_NOT_ENGLISH)
+            logging.warning(Ghost.ERR_WORD_NOT_ENGLISH)
             return False
 
         self.__town_word = value.lower()
@@ -152,17 +155,17 @@ class Ghost:
         if not self.__is_game_state(Ghost.States.SET_PARAMS):
             return False
         elif self.__town_word is None:
-            logging.warning(ERR_TOWN_WORD_NOT_SET)
+            logging.warning(Ghost.ERR_TOWN_WORD_NOT_SET)
             return False
         elif len(value) != len(self.__town_word):
-            logging.warning(ERR_FOOL_WORD_DIFFERENT_LENGTH)
+            logging.warning(Ghost.ERR_FOOL_WORD_DIFFERENT_LENGTH)
             return False
         elif value == self.__town_word:
-            logging.warning(ERR_FOOL_WORD_DUPLICATE)
+            logging.warning(Ghost.ERR_FOOL_WORD_DUPLICATE)
             return False
         elif not Ghost.DICTIONARY.check(value):
-            logging.warning(ERR_WORD_NOT_ENGLISH)
-            return
+            logging.warning(Ghost.ERR_WORD_NOT_ENGLISH)
+            return False
 
         self.__fool_word = value.lower()
         logging.info('Success: Set the fool word: %s' % value)
@@ -180,9 +183,8 @@ class Ghost:
 
     def get_player_roles(self) -> dict:
         if self.__game_state == Ghost.States.REGISTER_PLAYERS:
-            raise Ghost.GhostException(
-                'Still registering players. Roles have not been allocated'
-            )
+            logging.warning(Ghost.ERR_ROLES_NOT_ALLOCATED)
+            return dict()
 
         result = dict()
 
@@ -197,16 +199,12 @@ class Ghost:
     def __is_ghost(self, username: str) -> bool:
         return self.__player_info[username].role == Ghost.Roles.GHOST
 
-    def __check_user_alive(self, username: str) -> None:
+    def __is_user_alive(self, username: str) -> bool:
         if username not in self.__player_info:
-            raise Ghost.GhostException(
-                'User @%s is currently not playing' % username
-            )
+            logging.warning(Ghost.ERR_USER_NOT_IN_GAME)
+            return False
 
-        if username not in self.__player_info:
-            raise Ghost.GhostException(
-                'User @%s is not alive' % username
-            )
+        return True
 
     def __reset_info(self) -> None:
         for player in self.__player_info.values():
@@ -220,28 +218,34 @@ class Ghost:
         self.__unvoted_players = set(self.__player_info)
 
     def suggest_next_clue_giver(self) -> str:
-        self.__is_game_state(Ghost.States.CLUE_ROUND)
+        if not self.__is_game_state(Ghost.States.CLUE_ROUND):
+            return ''
+
         return random.sample(self.__unvoted_players, 1)[0]
 
-    def set_clue(self, username: str, clue: str) -> bool:
-        self.__is_game_state(Ghost.States.CLUE_ROUND)
-        self.__check_user_alive(username)
-
-        if self.__player_info[username].info is not None:
+    def set_clue(self, username: str, clue: str) -> (bool, bool):
+        default_return = False, False
+        if not self.__is_game_state(Ghost.States.CLUE_ROUND):
+            return default_return
+        elif not self.__is_user_alive(username):
+            return default_return 
+        elif self.__player_info[username].info is not None:
             logging.warning(Ghost.ERR_CLUE_ALREADY_GIVEN % username)
-        else:
-            self.__player_info[username].clue = clue
-            self.__unvoted_players.remove(username)
+            return default_return 
+
+        self.__player_info[username].clue = clue
+        self.__unvoted_players.remove(username)
 
         # check if all players have given clues
         is_complete = len(self.__unvoted_players) == 0
         if is_complete:
             self.__start_vote_phase()
 
-        return is_complete
+        return True, is_complete
 
     def get_all_clues(self) -> dict:
-        self.__is_game_state(Ghost.States.VOTE_ROUND)
+        if not self.__is_game_state(Ghost.States.VOTE_ROUND):
+            return dict()
 
         result = dict()
         for username, player in self.__player_info.items():
@@ -257,12 +261,14 @@ class Ghost:
         self.__unvoted_players = set(self.__player_info)
         self.__last_lycnhed = None
 
-    def set_vote(self, username: str, vote: str) -> (bool, str):
-        self.__is_game_state(Ghost.States.VOTE_ROUND)
-        self.__check_user_alive(username)
-
-        if vote != Ghost.__EMPTY_VOTE:
-            self.__check_user_alive(vote)
+    def set_vote(self, username: str, vote: str) -> (bool, bool, str):
+        default_return = False, False, ''
+        if not self.__is_game_state(Ghost.States.VOTE_ROUND):
+            return default_return 
+        elif not self.__is_user_alive(username):
+            return default_return 
+        elif vote != Ghost.__EMPTY_VOTE and not self.__is_user_alive(vote):
+            return default_return 
 
         self.__player_info[username].info = vote
         self.__unvoted_players.discard(username)
@@ -309,7 +315,7 @@ class Ghost:
             self.__game_state = Ghost.States.GUESS_ROUND
         else:
             self.__kill_player(to_lynch)
-            self.__start_clue_phase()
+            self.__start_vote_phase()
 
     def __kill_player(self, username: str) -> None:
         del self.__player_info[username]
@@ -324,20 +330,22 @@ class Ghost:
 
     ''' PHASE: GUESS '''
 
-    def make_guess(self, username: str, guess: str) -> bool:
-        self.__is_game_state(Ghost.States.GUESS_ROUND)
-
-        if username != self.__last_lynched:
+    def make_guess(self, username: str, guess: str) -> (bool, bool):
+        default_return = False, False
+        if not self.__is_game_state(Ghost.States.GUESS_ROUND):
+            return default_return
+        elif username != self.__last_lynched:
+            logging.warning(Ghost.ERR_PLAYER_CANNOT_GUESS % username)
             # ignore irrelevant messages
-            return
+            return default_return
 
         logging.info('Player @%s has guessed: %s' % (username, guess))
         if guess.lower() == self.__town_word:
             self.__game_state = Ghost.States.WINNER_GHOST
-            return True
+            return True, True
         
         self.__kill_player(username)
         if self.__game_state != Ghost.States.WINNER_TOWN:
             self.__start_vote_phase()
         
-        return False
+        return True, False
