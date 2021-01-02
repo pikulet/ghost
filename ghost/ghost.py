@@ -1,6 +1,9 @@
 from enum import Enum
-from collections import deque, defaultdict
+from collections import defaultdict
 import random
+import enchant
+
+from typing import List
 
 import logging
 
@@ -12,8 +15,7 @@ class Player:
 
 class Ghost:
 
-    class GhostException(Exception):
-        pass
+    DICTIONARY = enchant.Dict("en-US")
 
     # parameters for validation
     MIN_NUM_PLAYERS = 3
@@ -51,13 +53,21 @@ class Ghost:
         GUESS_ROUND = 'Guess Round'
         WINNER_GHOST = 'Ghosts won'
         WINNER_TOWN = 'Town won'
+        INVALID = 'Invalid game'
 
     # Error messages
     ERR_INVALID_GAME_STATE = 'Invalid game state! Expected %s but got %s'
     ERR_PLAYER_ALREADY_REGISTERED = 'Player %s is already registered' 
-    ERR_PLAYER_CAP_EXCEEDED = 'Player capacity of %d exceeded.'
+    ERR_PLAYER_CAP_EXCEEDED = 'Player capacity of %d exceeded' % MAX_NUM_PLAYERS
     ERR_INSUFF_PLAYERS = 'Not enough players joined (min %d)' % MIN_NUM_PLAYERS
-    ERR_WORD_NOT_ALPHA = 'The word must be alphabetic (no numbers or symbols)'
+    ERR_WORD_NOT_ENGLISH = 'The word must be a valid English word'
+    ERR_WORD_TOO_SHORT = 'The word cannot be too short (%d char min)' % MIN_WORD_LENGTH
+    ERR_WORD_TOO_LONG = 'The word cannot be too long (%d char max)' % MAX_WORD_LENGTH
+    ERR_TOWN_WORD_NOT_SET = 'Set the town word first'
+    ERR_FOOL_WORD_DIFFERENT_LENGTH = 'The fool word and town word must have the same length'
+    ERR_FOOL_WORD_DUPLICATE = 'The fool word cannot be exactly the same as the town word'
+    ERR_CLUE_ALREADY_GIVEN = 'User @%s has already given a clue this round'
+
 
     def __init__(self):
         self.__game_state = Ghost.States.REGISTER_PLAYERS
@@ -69,41 +79,40 @@ class Ghost:
 
         self.__last_lynched = None
 
-    def __check_game_state(self, expected_state: States) -> None:
+    def __is_game_state(self, expected_state: States) -> bool:
         if self.__game_state != expected_state:
-            raise Ghost.GhostException(
-                ERR_INVALID_GAME_STATE % (expected_state, self.__game_state)
-            )
+            logging.warning(Ghost.ERR_INVALID_GAME_STATE % (expected_state,
+                                                      self.__game_state))
+            return False
+
+        return True
 
     ''' PHASE: REGISTER PLAYERS '''
 
     def register_player(self, username: str) -> int:
-        logging.info('Registering player @%s' % username)
-        self.__check_game_state(Ghost.States.REGISTER_PLAYERS)
+        if not self.__is_game_state(Ghost.States.REGISTER_PLAYERS):
+            pass
+        elif username in self.__player_info:
+            logging.warning(Ghost.ERR_PLAYER_ALREADY_REGISTERED % username)
+        elif len(self.__player_info) >= Ghost.MAX_NUM_PLAYERS:
+            logging.warning(Ghost.ERR_PLAYER_CAP_EXCEEDED)
+        else:
+            self.__player_info[username] = Player()
+            logging.info('Success: Registered player @%s' % username)
 
-        if username in self.__player_info:
-            raise Ghost.GhostException(
-                ERR_PLAYER_ALREADY_REGISTERED % username
-            )
-
-        if len(self.__player_info) >= Ghost.MAX_NUM_PLAYERS:
-            # TODO: Automatically start the game
-            raise Ghost.GhostException(
-                ERR_PLAYER_CAP_EXCEEDED % Ghost.MAX_NUM_PLAYERS
-            )
-
-        self.__player_info[username] = Player()
         return len(self.__player_info)
 
-    def start_game(self) -> int:
-        logging.info('Starting game')
-        self.__check_game_state(Ghost.States.REGISTER_PLAYERS)
+    def start_game(self) -> None:
+        if not self.__is_game_state(Ghost.States.REGISTER_PLAYERS):
+            return
 
         if len(self.__player_info) < Ghost.MIN_NUM_PLAYERS:
-            raise Ghost.GhostException(Ghost.ERR_INSUFF_PLAYERS)
+            logging.warning(Ghost.ERR_INSUFF_PLAYERS)
+            return
 
         self.__allocate_roles()
         self.__game_state = Ghost.States.SET_PARAMS
+        logging.info('Success: Started game')
 
     def __allocate_roles(self) -> None:
         # get the roles in this game
@@ -122,62 +131,52 @@ class Ghost:
 
     ''' PHASE: SET PARAMS '''
 
-    def set_param_town_word(self, value: str) -> None:
-        logging.info('Setting town word: %s' % value)
-        self.__check_game_state(Ghost.States.SET_PARAMS)
-
-        if not value.isalpha():
-            raise Ghost.GhostException(ERR_WORD_NOT_ALPHA)
-
-        if len(value) < Ghost.MIN_WORD_LENGTH:
-            raise Ghost.GhostException(
-                'The word cannot be too short (%d char min)' %
-                Ghost.MIN_WORD_LENGTH
-            )
-
-        if len(value) > Ghost.MAX_WORD_LENGTH:
-            raise Ghost.GhostException(
-                'The word cannot be too long (%d char max)' %
-                Ghost.MAX_WORD_LENGTH
-            )
+    def set_param_town_word(self, value: str) -> bool:
+        if not self.__is_game_state(Ghost.States.SET_PARAMS):
+            return False
+        elif len(value) < Ghost.MIN_WORD_LENGTH:
+            logging.warning(ERR_WORD_TOO_SHORT)
+            return False
+        elif len(value) > Ghost.MAX_WORD_LENGTH:
+            logging.warning(ERR_WORD_TOO_LONG)
+            return False
+        elif not Ghost.DICTIONARY.check(value):
+            logging.warning(ERR_WORD_NOT_ENGLISH)
+            return False
 
         self.__town_word = value.lower()
+        logging.info('Success: Set the town word: %s' % value)
+        return True
 
-    def set_param_fool_word(self, value: str) -> None:
-        logging.info('Setting fool word: %s' % value)
-        self.__check_game_state(Ghost.States.SET_PARAMS)
-
-        if self.__town_word is None:
-            raise Ghost.GhostException(
-                'Set the town word first'
-            )
-
-        if not value.isalpha():
-            raise Ghost.GhostException(
-                'The word must be alphabetic (no numbers or symbols)'
-            )
-        
-        if len(value) != len(self.__town_word):
-            raise Ghost.GhostException(
-                'The fool word and town word must have the same length'
-            )
-
-        if value == self.__town_word:
-            raise Ghost.GhostException(
-                'The fool word cannot be exactly the same as the town word'
-            )
+    def set_param_fool_word(self, value: str) -> bool:
+        if not self.__is_game_state(Ghost.States.SET_PARAMS):
+            return False
+        elif self.__town_word is None:
+            logging.warning(ERR_TOWN_WORD_NOT_SET)
+            return False
+        elif len(value) != len(self.__town_word):
+            logging.warning(ERR_FOOL_WORD_DIFFERENT_LENGTH)
+            return False
+        elif value == self.__town_word:
+            logging.warning(ERR_FOOL_WORD_DUPLICATE)
+            return False
+        elif not Ghost.DICTIONARY.check(value):
+            logging.warning(ERR_WORD_NOT_ENGLISH)
+            return
 
         self.__fool_word = value.lower()
+        logging.info('Success: Set the fool word: %s' % value)
+
         self.__start_clue_phase()
+        return True
 
     ''' HELPER METHODS '''
 
     def get_game_state(self) -> States:
         return self.__game_state
 
-    # TODO: remove
-    def get_num_players(self) -> int:
-        return len(self.__player_info)
+    def get_existing_players(self) -> List[str]:
+        return list(self.__player_info)
 
     def get_player_roles(self) -> dict:
         if self.__game_state == Ghost.States.REGISTER_PLAYERS:
@@ -221,20 +220,18 @@ class Ghost:
         self.__unvoted_players = set(self.__player_info)
 
     def suggest_next_clue_giver(self) -> str:
-        self.__check_game_state(Ghost.States.CLUE_ROUND)
+        self.__is_game_state(Ghost.States.CLUE_ROUND)
         return random.sample(self.__unvoted_players, 1)[0]
 
     def set_clue(self, username: str, clue: str) -> bool:
-        self.__check_game_state(Ghost.States.CLUE_ROUND)
+        self.__is_game_state(Ghost.States.CLUE_ROUND)
         self.__check_user_alive(username)
 
         if self.__player_info[username].info is not None:
-            raise Ghost.GhostException(
-                'User @%s has already given a clue this round' % username
-            )
-
-        self.__player_info[username].clue = clue
-        self.__unvoted_players.remove(username)
+            logging.warning(Ghost.ERR_CLUE_ALREADY_GIVEN % username)
+        else:
+            self.__player_info[username].clue = clue
+            self.__unvoted_players.remove(username)
 
         # check if all players have given clues
         is_complete = len(self.__unvoted_players) == 0
@@ -244,7 +241,7 @@ class Ghost:
         return is_complete
 
     def get_all_clues(self) -> dict:
-        self.__check_game_state(Ghost.States.VOTE_ROUND)
+        self.__is_game_state(Ghost.States.VOTE_ROUND)
 
         result = dict()
         for username, player in self.__player_info.items():
@@ -261,7 +258,7 @@ class Ghost:
         self.__last_lycnhed = None
 
     def set_vote(self, username: str, vote: str) -> (bool, str):
-        self.__check_game_state(Ghost.States.VOTE_ROUND)
+        self.__is_game_state(Ghost.States.VOTE_ROUND)
         self.__check_user_alive(username)
 
         if vote != Ghost.__EMPTY_VOTE:
@@ -328,7 +325,7 @@ class Ghost:
     ''' PHASE: GUESS '''
 
     def make_guess(self, username: str, guess: str) -> bool:
-        self.__check_game_state(Ghost.States.GUESS_ROUND)
+        self.__is_game_state(Ghost.States.GUESS_ROUND)
 
         if username != self.__last_lynched:
             # ignore irrelevant messages

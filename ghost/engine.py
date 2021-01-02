@@ -1,68 +1,88 @@
 from bidict import bidict
 from ghost.ghost import Ghost
 
+from typing import List
+
+import logging
+
 class GhostEngine:
 
     class GhostEngineException(Exception):
         pass
+
+    ERR_TOO_MANY_GAMES = 'Too many ongoing games... Please wait...'
+    ERR_GID_ALREADY_EXISTS = 'There is already an ongoing game in this group'
+    ERR_GID_DOES_NOT_EXIST = 'Game %d does not exist'
+
+    ERR_USER_NOT_HOST = 'User @%s is not the host of any game'
+    ERR_PLAYER_DOES_NOT_EXIST = 'User @%s has no ongoing game'
 
     def __init__(self, max_games = 4):
         self.__MAX_NUMBER_OF_GAMES = max_games
         self.__games = dict()                   # gid to game
         self.__host_to_gid = bidict()      # host to gid
 
-    def add_game(self, gid: int, host: str) -> None:
-        ''' Creates a game in the engine '''
+    def add_game(self, gid: int, host: str) -> bool:
+        ''' Creates a game in the engine.
+        Returns True if the game was successfully created '''
         if gid in self.__games:
-            raise GhostEngine.GhostEngineException(
-                'There is already an ongoing game in this group...'
-            )
-
+            logging.warning(GhostEngine.ERR_GID_ALREADY_EXISTS)
+            return False
         elif len(self.__games) >= self.__MAX_NUMBER_OF_GAMES:
-            raise GhostEngine.GhostEngineException(
-                'Too many ongoing games... Please wait...'
-            )
+            logging.warning(GhostEngine.ERR_TOO_MANY_GAMES)
+            return False
 
         new_game = Ghost()
         self.__games[gid] = new_game
         self.__host_to_gid[host] = gid
+        return True
 
-    def delete_game(self, gid: int) -> None:
-        ''' Removes a game from the engine '''
-        self.__check_game_exists()
+    def delete_game(self, gid: int) -> bool:
+        ''' Removes a game from the engine. 
+        Returns True if the game was successfully deleted '''
+        self.__is_game_exists()
         del self.__games[gid]
 
         host = self.__get_host_from_gid(gid)
         del self.__hosts_to_gid[host]
 
-    def __check_game_exists(self, gid: int) -> None:
+    def __is_game_exists(self, gid: int) -> bool:
         if gid not in self.__games:
-            raise GhostEngine.GhostEngineException(
-                'Game %d does not exist' % gid
-            )
+            logging.warning(ERR_GID_DOES_NOT_EXIST % gid)
+            return False
 
-    def __check_host_exists(self, host: str) -> None:
+        return True
+
+    def __is_host_exists(self, host: str) -> bool:
         if host not in self.__host_to_gid:
-            raise GhostEngine.GhostEngineException(
-                'User @%s is not the host of any game'
-            )
+            logging.warning(ERR_USER_NOT_HOST % host)
+            return False
 
-    def __check_player_exists(self, username: str) -> None:
+        return True
+
+    def __is_player_exists(self, username: str) -> None:
         if player not in self.__username_to_gid:
-            raise GhostEngine.GhostEngineException(
-                'User @%s has no ongoing game'
-            )
+            logging.warning(ERR_PLAYER_DOES_NOT_EXIST)
+            return False
+
+        return True
 
     def __get_game_from_gid(self, gid: int) -> Ghost:
-        self.__check_game_exists(gid)
+        if not self.__is_game_exists(gid):
+            return Ghost() 
+
         return self.__games[gid]
 
     def __get_gid_from_host(self, host: str) -> int:
-        self.__check_host_exists(host)
+        if not self.__is_host_exists(host):
+            return -1
+
         return self.__host_to_gid[host]
 
     def __get_host_from_gid(self, gid: int) -> str:
-        self.__check_game_exists(gid)
+        if not self.__is_game_exists(gid):
+            return ''
+
         return self.__host_to_gid.inverse[gid]
 
     ''' GET GAME INFORMATION '''
@@ -71,9 +91,9 @@ class GhostEngine:
         game = self.__get_game_from_gid(gid)
         return game.get_game_state()
 
-    def get_num_players(self, gid: int) -> int:
+    def get_existing_players(self, gid: int) -> List[int]:
         game = self.__get_game_from_gid(gid)
-        return game.get_num_players()
+        return game.get_existing_players()
 
     def get_player_roles(self, gid: int) -> dict:
         game = self.__get_game_from_gid(gid)
