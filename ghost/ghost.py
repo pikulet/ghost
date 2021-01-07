@@ -11,7 +11,8 @@ class Player:
 
     def __init__(self):
         self.role = Ghost.Roles.TOWN
-        self.info = None
+        self.clue = None
+        self.vote = None
 
 class Ghost:
 
@@ -69,6 +70,7 @@ class Ghost:
     ERR_ROLES_NOT_ALLOCATED = 'Still registering players. Roles have not been allocated'
     ERR_USER_NOT_IN_GAME = 'User @%s is currently not alive or not playing'
     ERR_PLAYER_NOT_IN_ORDER = 'It is currently user @%s\'s turn!'
+    ERR_ALL_CLUES_ALREADY_GIVEN = 'All the clues are in! Proceed to vote'
     ERR_CLUE_ALREADY_GIVEN = 'User @%s has already given a clue this round'
     ERR_PLAYER_CANNOT_GUESS = 'It is not up to player @%s to guess'
 
@@ -228,19 +230,21 @@ class Ghost:
     def __is_user_alive(self, username: str) -> bool:
         return username in self.__player_info
 
-    def __reset_info(self) -> None:
-        for player in self.__player_info.values():
-            player.info = None
 
     ''' PHASE: CLUES '''
 
     def __start_clue_phase(self) -> None:
         self.__game_state = Ghost.States.CLUE_ROUND
-        self.__reset_info()
+        for p in self.__player_info.values():
+            p.clue = None
         self.__unvoted_players = set(self.__player_info)
         self.__player_order_index = 0
 
     def get_next_in_player_order(self) -> str:
+        if len(self.__unvoted_players) == 0:
+            logging.warning(Ghost.ERR_ALL_CLUES_ALREADY_GIVEN)
+            return ''
+
         return self.__player_order[self.__player_order_index]
 
     def __increase_player_order_index(self) -> None:
@@ -256,7 +260,7 @@ class Ghost:
         elif not self.__is_user_alive(username):
             logging.warning(Ghost.ERR_USER_NOT_IN_GAME % username)
             return default_return 
-        elif self.__player_info[username].info is not None:
+        elif self.__player_info[username].clue is not None:
             logging.warning(Ghost.ERR_CLUE_ALREADY_GIVEN % username)
             return default_return 
 
@@ -279,11 +283,6 @@ class Ghost:
     def get_all_clues(self) -> dict:
         result = dict()
 
-        if not self.__is_game_state(Ghost.States.VOTE_ROUND):
-            logging.warning(Ghost.ERR_INVALID_GAME_STATE % 
-                            (Ghost.States.VOTE_ROUND, self.__game_state))
-            return result
-
         for username, player in self.__player_info.items():
             result[username] = player.clue
 
@@ -293,7 +292,8 @@ class Ghost:
 
     def __start_vote_phase(self) -> None:
         self.__game_state = Ghost.States.VOTE_ROUND
-        self.__reset_info()
+        for p in self.__player_info.values():
+            p.vote = None
         self.__unvoted_players = set(self.__player_info)
 
     def set_vote(self, username: str, vote: str) -> (bool, bool, str):
@@ -309,7 +309,7 @@ class Ghost:
             logging.warning(Ghost.ERR_USER_NOT_IN_GAME % vote)
             return default_return 
 
-        self.__player_info[username].info = vote
+        self.__player_info[username].vote = vote
         self.__unvoted_players.discard(username)
 
         is_complete = len(self.__unvoted_players) == 0
@@ -321,7 +321,7 @@ class Ghost:
     def __tally_votes(self, players) -> set:
         votes = defaultdict(lambda: 0)
         for username in players:
-            v = self.__player_info[username].info
+            v = self.__player_info[username].vote
             votes[v] += 1
 
         if votes[Ghost.__EMPTY_VOTE] >= len(players) // 2:
@@ -363,9 +363,11 @@ class Ghost:
         if num_ghost_alive == 0:
             # killed all ghosts
             self.__game_state = Ghost.States.WINNER_TOWN
+            logging.info('Congratulations to the Town!')
         elif num_ghost_alive >= len(self.__player_info) // 2:
             # ghosts got majority
             self.__game_state = Ghost.States.WINNER_GHOST
+            logging.info('Congratulations to the Ghosts!')
 
     ''' PHASE: GUESS '''
 
@@ -382,8 +384,8 @@ class Ghost:
 
         logging.info('Player @%s has guessed: %s' % (username, guess.lower()))
         if guess.lower() == self.__town_word:
-            logging.info('Congratulations to the Ghosts!')
             self.__game_state = Ghost.States.WINNER_GHOST
+            logging.info('Congratulations to the Ghosts!')
             return True, True
         
         self.__kill_player(username)
