@@ -354,7 +354,8 @@ class Ghost:
             self.__game_state = Ghost.States.GUESS_ROUND
         else:
             self.__kill_player(to_lynch)
-            self.__start_vote_phase()
+            if self.__game_state != Ghost.States.WINNER_GHOST: 
+                self.__start_vote_phase()
 
     def __kill_player(self, username: str) -> None:
         del self.__player_info[username]

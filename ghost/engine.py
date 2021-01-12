@@ -90,11 +90,11 @@ class GhostEngine:
         game = self.__get_game_from_gid(gid)
         return game.get_game_state()
 
-    def get_existing_players(self, gid: int) -> List[int]:
+    def get_existing_players(self, gid: int) -> List[str]:
         game = self.__get_game_from_gid(gid)
         return game.get_existing_players()
 
-    def get_player_order(self, gid: int) -> List[int]:
+    def get_player_order(self, gid: int) -> List[str]:
         game = self.__get_game_from_gid(gid)
         return game.get_player_order()
 
