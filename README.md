@@ -46,13 +46,9 @@ if state == ghost.States.GUESS_ROUND:
 
 ```
 
-## :wrench: Some quik tools
+## :wrench: Some quick tools
 
 Wrote some shell scripts to make it faster to run tests and upload the package to PyPi.
 
 `bash run_tests.sh` and `upload_pkg.sh` can be used. Remember to do the relevant config in `setup.py` before uplaoding to PyPi.
 
-## :seedling: Notes
-
-Currently, my sister is building a Telegram bot that utilises this engine. You're also free to develop the Ghost game using this engine!
-Looking forward to suggestions ^^
